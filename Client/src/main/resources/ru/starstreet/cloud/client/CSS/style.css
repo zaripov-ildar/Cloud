@@ -1,0 +1,84 @@
+/* <a target="_blank" href="https://icons8.com/icon/110235/add">Add</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+*/
+* {
+    -fx-btn-size: 40;
+    -fx-btn-bar-height: 40;
+}
+.root{
+    -fx-background-color: rgb(50, 50, 50);
+}
+
+.image_btn {
+    -fx-background-size: 40;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center;
+}
+
+.download_btn {
+    -fx-background-image: url('../Images/download.png');
+}
+
+.create_dir_btn {
+    -fx-background-image: url('../Images/createDir.png');
+}
+
+.create_file_btn {
+    -fx-background-image: url('../Images/createFile.png');
+}
+
+.upload_btn {
+    -fx-background-image: url('../Images/upload.png');
+}
+.remove_btn{
+    -fx-background-image: url('../Images/remove.png');
+}
+.share_btn{
+    -fx-background-image: url('../Images/share.png');
+}
+
+.button {
+    -fx-pref-height: -fx-btn-size;
+    -fx-pref-width: -fx-btn-size;
+    -fx-background-color: rgb(140, 140, 140);
+    -fx-background-radius: 5 5 5 5;
+    -fx-background-position: right;
+}
+
+.button:hover {
+    -fx-background-color: rgb(175, 175, 175);
+}
+
+.button:pressed {
+    -fx-background-color: rgb(200, 200, 200);
+}
+
+.btn_bar {
+    -fx-pref-height: -fx-btn-bar-height;
+    -fx-spacing: 2;
+}
+
+.list-view {
+    -fx-background-radius: 10 10 10 10;
+    -fx-text-fill: white;
+    -fx-background-color: rgb(140, 140, 140);
+}
+
+
+.label {
+    -fx-text-fill: white;
+}
+
+.pane{
+    -fx-background-color: rgb(50, 50, 50);
+}
+
+.image-view:hover {
+    -fx-pref-width: 150;
+}
+.context-menu {
+    -fx-background-radius: 5 5 5 5;
+    -fx-background-color: rgb(50, 50, 50);
+}
+
+
+

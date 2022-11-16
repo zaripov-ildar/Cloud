@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.String?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ContextMenu?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.SeparatorMenuItem?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+
+<!--<a target="_blank" href="https://icons8.com/icon/12779/upload">Upload</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>-->
+
+<AnchorPane minHeight="400.0" minWidth="600.0" styleClass="pane" stylesheets="@../CSS/style.css"
+            xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="ru.starstreet.cloud.client.ClientController">
+
+    <AnchorPane prefHeight="200.0" prefWidth="200.0" styleClass="pane" AnchorPane.bottomAnchor="0.0"
+                AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"
+                BorderPane.alignment="CENTER">
+        <SplitPane dividerPositions="0.5" prefHeight="394.0" prefWidth="588.0" AnchorPane.bottomAnchor="0.0"
+                   AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="160.0" prefWidth="100.0" styleClass="pane">
+                <Label fx:id="clientPathLabel" layoutX="31.0" layoutY="28.0" text="/root/home"
+                       AnchorPane.leftAnchor="10.0" AnchorPane.topAnchor="10.0"/>
+                <ListView fx:id="clientFileList" layoutX="10.0" layoutY="33.0" onMouseClicked="#clientViewDoubleClick"
+                          prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="50.0"
+                          AnchorPane.leftAnchor="5.0" AnchorPane.rightAnchor="5.0" AnchorPane.topAnchor="30.0">
+                    <contextMenu>
+                        <ContextMenu fx:id="clientMenu">
+                            <items>
+                                <MenuItem text="Rename" onAction="#renameOnClient"/>
+                                <MenuItem text="Send" onAction="#cm_send"/>
+                                <SeparatorMenuItem/>
+                                <MenuItem text="Delete" onAction="#cm_remove"/>
+                                <SeparatorMenuItem/>
+                                <MenuItem text="Properties" onAction="#cm_attributes"/>
+                            </items>
+                        </ContextMenu>
+                    </contextMenu>
+                </ListView>
+                <HBox alignment="TOP_RIGHT" prefHeight="100.0" prefWidth="200.0" styleClass="btn_bar"
+                      AnchorPane.bottomAnchor="5.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="10.0">
+                    <Button mnemonicParsing="false" onMouseClicked="#createFolderOnClient">
+                        <tooltip>
+                            <Tooltip text="Create folder"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="create_dir_btn"/>
+                        </styleClass>
+                    </Button>
+                    <Button mnemonicParsing="false" onMouseClicked="#createFileOnClient">
+                        <tooltip>
+                            <Tooltip text="Create file"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="create_file_btn"/>
+                        </styleClass>
+                    </Button>
+                    <Button mnemonicParsing="false" onMouseClicked="#sendPackage">
+                        <tooltip>
+                            <Tooltip text="Upload"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="upload_btn"/>
+                        </styleClass>
+                    </Button>
+                    <Button mnemonicParsing="false" onMouseClicked="#removeOnClient">
+                        <tooltip>
+                            <Tooltip text="Remove"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="remove_btn"/>
+                        </styleClass>
+                    </Button>
+                </HBox>
+            </AnchorPane>
+            <AnchorPane prefHeight="349.0" prefWidth="290.0" styleClass="pane">
+                <Label fx:id="serverPathLabel" text="/" AnchorPane.leftAnchor="10.0" AnchorPane.topAnchor="10.0"/>
+                <ListView fx:id="serverFileList" onMouseClicked="#serverViewDoubleClick" prefHeight="200.0"
+                          prefWidth="200.0" AnchorPane.bottomAnchor="50.0" AnchorPane.leftAnchor="5.0"
+                          AnchorPane.rightAnchor="5.0" AnchorPane.topAnchor="30.0">
+                    <contextMenu>
+                        <ContextMenu fx:id="serverMenu">
+                            <items>
+                                <MenuItem text="Rename" onAction="#sm_rename"/>
+                                <MenuItem text="Download" onAction="#sm_download"/>
+                                <SeparatorMenuItem/>
+                                <MenuItem text="Delete" onAction="#sm_remove"/>
+                                <SeparatorMenuItem/>
+                                <MenuItem text="Properties"/>
+                            </items>
+                        </ContextMenu>
+                    </contextMenu>
+                </ListView>
+
+                <HBox alignment="TOP_RIGHT" maxHeight="40.0" minHeight="40.0" prefHeight="40.0" prefWidth="200.0"
+                      styleClass="btn_bar" AnchorPane.bottomAnchor="5.0" AnchorPane.leftAnchor="10.0"
+                      AnchorPane.rightAnchor="10.0">
+                    <Button mnemonicParsing="false" onMouseClicked="#createFolderOnServer">
+                        <tooltip>
+                            <Tooltip text="Create folder"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="create_dir_btn"/>
+                        </styleClass>
+                    </Button>
+                    <Button mnemonicParsing="false" onMouseClicked="#download">
+                        <tooltip>
+                            <Tooltip text="Download"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="download_btn"/>
+                        </styleClass>
+                    </Button>
+                    <Button mnemonicParsing="false">
+                        <tooltip>
+                            <Tooltip text="Share"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="share_btn"/>
+                        </styleClass>
+                    </Button>
+                    <Button mnemonicParsing="false" onMouseClicked="#removeOnServer">
+                        <tooltip>
+                            <Tooltip text="Remove"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="remove_btn"/>
+                        </styleClass>
+                    </Button>
+                </HBox>
+            </AnchorPane>
+        </SplitPane>
+    </AnchorPane>
+
+</AnchorPane>
