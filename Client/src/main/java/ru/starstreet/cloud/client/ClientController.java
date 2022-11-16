@@ -8,11 +8,8 @@ import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.json.JSONObject;
-import ru.starstreet.cloud.core.AbstractMessage;
-import ru.starstreet.cloud.core.JSONNavigator;
-import ru.starstreet.cloud.core.Message;
-import ru.starstreet.cloud.core.PackedFile;
+import org.json.JSONArray;
+import ru.starstreet.cloud.core.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,11 +24,9 @@ import static ru.starstreet.cloud.core.Utils.HelpfulMethods.recursiveRemoving;
 
 @Slf4j
 public class ClientController implements Initializable {
-    private static boolean isAuthorized;
+    private boolean authorized;
     private Path currentClientPath;
     private Path currentServerPath;
-
-    private JSONNavigator navigator;
     private NettyClient client;
     @FXML
     private Label serverPathLabel;
@@ -47,16 +42,26 @@ public class ClientController implements Initializable {
     private ContextMenu serverMenu;
 
     private void getOnMsgReceived(AbstractMessage abstractMessage) {
-        if (abstractMessage instanceof Message) {
-            String message = ((Message) abstractMessage).getMessage();
-            System.out.println(message);
-            if (message.equals("passed")) {
-                isAuthorized = true;
-            } else if (message.startsWith("{")) {
-                updateNavigator(new JSONObject(message));
+        if (abstractMessage instanceof StringMessage msg) {
+            Command cmd = msg.getCmd();
+            String argument = msg.getArgument();
+            System.out.println(cmd + ">>>" + argument);
+
+            if (cmd == Command.PASSED){
+                currentServerPath = Path.of(msg.getArgument());
+                authorized = true;
                 refreshServerView();
+
+            } else if (cmd == Command.FILE_LIST){
+                JSONArray arr = new JSONArray(argument);
+                List<String> files = new ArrayList<>();
+                for (Object o : arr) {
+                    files.add((String)o);
+                }
+                updateView(serverFileList, files, serverPathLabel, currentServerPath);
             }
-        } else if (abstractMessage instanceof PackedFile pf) {
+
+        } else if (abstractMessage instanceof PackedFileMessage pf) {
             String fileName = pf.getPath();
             Path file = currentClientPath.resolve(fileName);
             try {
@@ -68,19 +73,6 @@ public class ClientController implements Initializable {
         }
     }
 
-    private void updateNavigator(JSONObject jsonObject) {
-        if (navigator == null) {
-            navigator = new JSONNavigator(jsonObject);
-            currentServerPath = Path.of(navigator.getRootName());
-        } else {
-            navigator = new JSONNavigator(jsonObject);
-        }
-    }
-
-
-    public boolean isAuthorized() {
-        return isAuthorized;
-    }
 
     public void sendMessage(AbstractMessage message) {
         client.sendMessage(message);
@@ -128,7 +120,6 @@ public class ClientController implements Initializable {
             }
         });
         return list;
-
     }
 
     private List<String> getFileList(Path p) {
@@ -191,10 +182,7 @@ public class ClientController implements Initializable {
     }
 
     private void refreshServerView() {
-        updateView(serverFileList,
-                sortFileList(navigator.getFileList(currentServerPath)),
-                serverPathLabel,
-                currentServerPath);
+        client.sendMessage(new StringMessage(Command.FILE_LIST, currentServerPath.toString()));
     }
 
     private static String cutLabelName(String labelName) {
@@ -222,7 +210,7 @@ public class ClientController implements Initializable {
             try {
                 byte[] arr = Files.readAllBytes(sendingFile);
                 Path pathOnServer = currentServerPath.resolve(sendingFile.getFileName());
-                PackedFile pf = new PackedFile(pathOnServer.toString(), arr);
+                PackedFileMessage pf = new PackedFileMessage(pathOnServer.toString(), arr);
                 client.sendMessage(pf);
             } catch (IOException e) {
                 log.error("Error: " + e);
@@ -237,7 +225,7 @@ public class ClientController implements Initializable {
             if (name != null) {
                 String newPath = currentServerPath.resolve(name) + "/";
                 System.out.println("create on server: " + newPath);
-                client.sendMessage(new Message("CREATE_DIR " + newPath));
+                client.sendMessage(new StringMessage(Command.CREATE_DIR, newPath));
             }
         }
     }
@@ -350,7 +338,7 @@ public class ClientController implements Initializable {
         name = currentServerPath + "/" + name;
         System.out.println(name);
         if (askAlert("Do you really want removing " + name + "?")) {
-            sendMessage(new Message("REMOVE " + name));
+            sendMessage(new StringMessage(Command.REMOVE, name));
         }
     }
 
@@ -366,7 +354,7 @@ public class ClientController implements Initializable {
         if (name.endsWith("/")) {
             showAlert("Sorry. I can't download directories yet((");
         } else {
-            sendMessage(new Message("DOWNLOAD " + currentServerPath + "/" + name));
+            sendMessage(new StringMessage(Command.DOWNLOAD, currentServerPath + "/" + name));
         }
     }
 
@@ -428,5 +416,9 @@ public class ClientController implements Initializable {
 
     public void sm_rename(ActionEvent event) {
         //todo
+    }
+
+    public boolean isAuthorized() {
+        return authorized;
     }
 }

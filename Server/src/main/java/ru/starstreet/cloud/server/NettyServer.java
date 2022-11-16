@@ -17,7 +17,6 @@ import java.nio.file.Path;
 @Slf4j
 public class NettyServer {
     private static final int PORT = 8189;
-    private static final Path storage = Path.of("Storage");
 
     public static void main(String[] args) {
         EventLoopGroup auth = new NioEventLoopGroup(1);
@@ -29,11 +28,10 @@ public class NettyServer {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {
-                            ClientInfo client = new ClientInfo(storage);
                             channel.pipeline().addLast(
                                     new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),
-                                    new PackedFileHandler(client)
+                                    new PackedFileHandler()
                             );
                         }
                     })

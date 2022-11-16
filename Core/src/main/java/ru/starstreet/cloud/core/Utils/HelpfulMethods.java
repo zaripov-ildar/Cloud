@@ -1,5 +1,8 @@
 package ru.starstreet.cloud.core.Utils;
 
+import org.json.JSONArray;
+import ru.starstreet.cloud.core.FileObject;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,5 +42,13 @@ public class HelpfulMethods {
                 "\nCreated: " + formatDateTime(attr.creationTime()) +
                 "\nlastModifiedTime: " + formatDateTime(attr.lastModifiedTime()) +
                 "\nLastAccessTime: " + formatDateTime(attr.lastAccessTime());
+    }
+    public  static String getFilesAsString(Path path){
+        File[] fileArr = path.toFile().listFiles();
+        JSONArray arr = new JSONArray();
+        for (File file : fileArr) {
+            arr.put(file.getName() + (file.isDirectory()?"/":""));
+        }
+        return arr.toString();
     }
 }

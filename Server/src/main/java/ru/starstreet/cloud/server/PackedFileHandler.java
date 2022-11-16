@@ -3,91 +3,92 @@ package ru.starstreet.cloud.server;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
-import ru.starstreet.cloud.core.AbstractMessage;
-import ru.starstreet.cloud.core.Message;
-import ru.starstreet.cloud.core.PackedFile;
-import ru.starstreet.cloud.core.Utils.HelpfulMethods;
-import ru.starstreet.cloud.server.DB.AuthorizationService;
-import ru.starstreet.cloud.server.DB.DAOSingleton;
+import ru.starstreet.cloud.core.*;
+import ru.starstreet.cloud.server.DB.DBService;
+import ru.starstreet.cloud.server.DB.TempDataBaseService;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static ru.starstreet.cloud.core.Utils.HelpfulMethods.getFilesAsString;
+import static ru.starstreet.cloud.core.Utils.HelpfulMethods.recursiveRemoving;
+
 @Slf4j
 public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessage> {
-    private final ClientInfo client;
+    private final DBService service;
+    private final Path STORAGE = Path.of("Storage");
 
-    public PackedFileHandler(ClientInfo client) {
-        this.client = client;
+    public PackedFileHandler() {
+        service = new TempDataBaseService();
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    public void channelActive(ChannelHandlerContext ctx) {
         System.out.println("client connected");
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) {
         System.out.println("client disconnected");
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, AbstractMessage msg) {
-        Path storage = Path.of("Storage");
-        if (msg instanceof PackedFile pf) {
-            Path path = storage.resolve(pf.getPath());
+    protected void channelRead0(ChannelHandlerContext ctx, AbstractMessage message) {
+        if (message instanceof PackedFileMessage pf) {
+            Path path = STORAGE.resolve(pf.getPath());
             try {
                 Files.write(path, pf.getBytes());
-//                todo remove duplication
-                DAOSingleton.INSTANCE.addNewFile(Path.of(pf.getPath()), client.getId());
-                ctx.writeAndFlush(new Message(DAOSingleton.INSTANCE.getDirTree(client.getId()).toString()));
+
+                ctx.writeAndFlush(new StringMessage(Command.FILE_LIST, getFilesAsString(path)));
             } catch (IOException e) {
-                log.error("Error: " + e);
+                log.error(e.getMessage());
             }
-        } else if (msg instanceof Message message) {
-            if (!client.isAuthorized()) {
-                AuthorizationService.authorize(message.getMessage(), ctx, client);
-            } else {
-                String[] tokens = message.getMessage().split(" ", 2);
-                System.out.println("command: " + tokens[0]);
-                System.out.println("argument: " + tokens[1]);
-                Path path = storage.resolve(tokens[1]);
-                switch (tokens[0]) {
-                    case "CREATE_DIR" -> {
-                        try {
-                            if (Files.notExists(path)) {
-                                Files.createDirectory(path);
-                            }
-//                todo remove duplication
-                            DAOSingleton.INSTANCE.addNewFolder(Path.of(tokens[1]), client.getId());
-                            ctx.writeAndFlush(new Message(DAOSingleton.INSTANCE.getDirTree(client.getId()).toString()));
-                        } catch (IOException e) {
-                            log.debug("Error: " + e);
-                        }
-                    }
-                    case "CREATE_FILE" -> {
-//                        todo
-                    }
-                    case "REMOVE" -> {
-                        HelpfulMethods.recursiveRemoving(path.toFile());
-//                todo remove duplication
-                        DAOSingleton.INSTANCE.remove(tokens[1], client.getId());
-                        ctx.writeAndFlush(new Message(DAOSingleton.INSTANCE.getDirTree(client.getId()).toString()));
-                    }
-                    case "DOWNLOAD" -> {
-                        Path file = storage.resolve(tokens[1]);
-                        try {
-                            byte[] arr = Files.readAllBytes(file);
-                            ctx.writeAndFlush(new PackedFile(file.getFileName().toString(), arr));
-                        } catch (IOException e) {
-                            log.debug("Error: " + e);
-                        }
+        } else if (message instanceof StringMessage msg) {
+            Command cmd = msg.getCmd();
+            String argument = msg.getArgument();
+            Path currentPath = STORAGE.resolve(argument);
+            System.out.println(cmd + ">>>" + argument);
+
+            switch (cmd) {
+                case AUTH -> {
+                    String[] pair = msg.getArgument().split(" ");
+                    if (service.isValidPass(pair[0], pair[1])) {
+                        currentPath = STORAGE.resolve(pair[0]);
+                        createDirIfNotExists(currentPath);
+                        ctx.writeAndFlush(new StringMessage(Command.PASSED, pair[0]));
+                    } else {
+                        ctx.writeAndFlush(new StringMessage(Command.AUTH, "Wrong login/password pair"));
+
                     }
                 }
+                case FILE_LIST -> sendFileList(ctx, currentPath);
+                case DOWNLOAD -> sendFile(ctx, currentPath);
+                case REMOVE -> recursiveRemoving(currentPath.toFile());
             }
         }
     }
 
+    private void sendFile(ChannelHandlerContext ctx, Path path) {
+        try {
+            byte[] bytes = Files.readAllBytes(path);
+            ctx.writeAndFlush(new PackedFileMessage(path.getFileName().toString(), bytes));
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
 
+    private void sendFileList(ChannelHandlerContext ctx, Path path) {
+        ctx.writeAndFlush(new StringMessage(Command.FILE_LIST, getFilesAsString(path)));
+    }
+
+    private void createDirIfNotExists(Path path) {
+        if (Files.notExists(path)) {
+            try {
+                Files.createDirectories(path.resolve("Shared Files"));
+            } catch (IOException e) {
+                log.error(e.getMessage());
+            }
+        }
+    }
 }

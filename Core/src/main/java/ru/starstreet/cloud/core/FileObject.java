@@ -4,12 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.io.Serializable;
 
-
-@EqualsAndHashCode(callSuper=false)
 @Data
 @AllArgsConstructor
-public class Message extends AbstractMessage {
-    private String message;
-
+public class FileObject implements Serializable {
+    private String name ;
+    private boolean isDirectory;
 }

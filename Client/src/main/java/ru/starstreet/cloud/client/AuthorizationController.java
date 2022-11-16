@@ -6,7 +6,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
-import ru.starstreet.cloud.core.Message;
+import ru.starstreet.cloud.core.Command;
+import ru.starstreet.cloud.core.StringMessage;
 
 import java.util.concurrent.TimeUnit;
 
@@ -21,7 +22,7 @@ public class AuthorizationController {
     public void authorize(ActionEvent actionEvent) throws InterruptedException {
         String login = loginField.getText();
         String password = passwordField.getText();
-        controller.sendMessage(new Message(login + " " + password));
+        controller.sendMessage(new StringMessage(Command.AUTH, login + " " + password));
         TimeUnit.MILLISECONDS.sleep(500);
         if (controller.isConnected() && controller.isAuthorized()){
             errorLabel.setVisible(true);
