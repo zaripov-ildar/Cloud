@@ -7,7 +7,8 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper=false)
 @Data
 @AllArgsConstructor
-public class PackedFile extends AbstractMessage {
-    private String path;
-    private byte[] bytes;
+public class StringMessage extends AbstractMessage {
+    private Command cmd;
+    private String argument;
+
 }

@@ -1,5 +1,7 @@
 package ru.starstreet.cloud.core.Utils;
 
+import org.json.JSONArray;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,15 +11,25 @@ import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HelpfulMethods {
-    public static void recursiveRemoving(File removingFile) {
+    public static List<String> recursiveRemoving(File removingFile) {
+        List<String> result = new ArrayList<>();
+        recursiveRemoving(removingFile, result);
+        return result;
+
+    }
+
+    public static void recursiveRemoving(File removingFile, List<String> list) {
         File[] deletingItems = removingFile.listFiles();
         if (deletingItems != null) {
             for (File file : deletingItems) {
                 recursiveRemoving(file);
             }
         }
+        list.add(removingFile.getName());
         removingFile.delete();
     }
 
@@ -40,4 +52,19 @@ public class HelpfulMethods {
                 "\nlastModifiedTime: " + formatDateTime(attr.lastModifiedTime()) +
                 "\nLastAccessTime: " + formatDateTime(attr.lastAccessTime());
     }
+
+    public static String getFilesAsString(Path path) {
+        File[] fileArr = path.toFile().listFiles();
+        if (fileArr == null) return new JSONArray().toString();
+        return getStringFromFileArray(fileArr);
+    }
+
+    public static String getStringFromFileArray(File[] fileArr) {
+        JSONArray arr = new JSONArray();
+        for (File file : fileArr) {
+            arr.put(file.getName() + (file.isDirectory() ? "/" : ""));
+        }
+        return arr.toString();
+    }
+
 }

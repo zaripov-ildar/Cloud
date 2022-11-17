@@ -123,7 +123,8 @@
                             <String fx:value="download_btn"/>
                         </styleClass>
                     </Button>
-                    <Button mnemonicParsing="false">
+                    <Button mnemonicParsing="false"
+                    onAction="#share">
                         <tooltip>
                             <Tooltip text="Share"/>
                         </tooltip>

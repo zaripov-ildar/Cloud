@@ -8,11 +8,8 @@ import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.json.JSONObject;
-import ru.starstreet.cloud.core.AbstractMessage;
-import ru.starstreet.cloud.core.JSONNavigator;
-import ru.starstreet.cloud.core.Message;
-import ru.starstreet.cloud.core.PackedFile;
+import org.json.JSONArray;
+import ru.starstreet.cloud.core.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,11 +24,10 @@ import static ru.starstreet.cloud.core.Utils.HelpfulMethods.recursiveRemoving;
 
 @Slf4j
 public class ClientController implements Initializable {
-    private static boolean isAuthorized;
+    public static final String SHARED_FILES = "Shared files";
+    private boolean authorized;
     private Path currentClientPath;
     private Path currentServerPath;
-
-    private JSONNavigator navigator;
     private NettyClient client;
     @FXML
     private Label serverPathLabel;
@@ -45,18 +41,36 @@ public class ClientController implements Initializable {
     private ContextMenu clientMenu;
     @FXML
     private ContextMenu serverMenu;
+    private String rootName;
+
+    public void setRooName(String rooName) {
+        this.rootName = rooName;
+    }
 
     private void getOnMsgReceived(AbstractMessage abstractMessage) {
-        if (abstractMessage instanceof Message) {
-            String message = ((Message) abstractMessage).getMessage();
-            System.out.println(message);
-            if (message.equals("passed")) {
-                isAuthorized = true;
-            } else if (message.startsWith("{")) {
-                updateNavigator(new JSONObject(message));
-                refreshServerView();
+        if (abstractMessage instanceof StringMessage msg) {
+            Command cmd = msg.getCmd();
+            String argument = msg.getArgument();
+            System.out.println(cmd + ">>>" + argument);
+
+            switch (cmd) {
+                case PASSED -> {
+                    currentServerPath = Path.of(msg.getArgument());
+                    authorized = true;
+                    refreshServerView();
+                }
+                case FILE_LIST, SHARED_FILES -> {
+                    JSONArray arr = new JSONArray(argument);
+                    List<String> files = new ArrayList<>();
+                    for (Object o : arr) {
+                        files.add((String) o);
+                    }
+                    updateView(serverFileList, files, serverPathLabel, currentServerPath);
+                }
+
             }
-        } else if (abstractMessage instanceof PackedFile pf) {
+
+        } else if (abstractMessage instanceof PackedFileMessage pf) {
             String fileName = pf.getPath();
             Path file = currentClientPath.resolve(fileName);
             try {
@@ -68,19 +82,6 @@ public class ClientController implements Initializable {
         }
     }
 
-    private void updateNavigator(JSONObject jsonObject) {
-        if (navigator == null) {
-            navigator = new JSONNavigator(jsonObject);
-            currentServerPath = Path.of(navigator.getRootName());
-        } else {
-            navigator = new JSONNavigator(jsonObject);
-        }
-    }
-
-
-    public boolean isAuthorized() {
-        return isAuthorized;
-    }
 
     public void sendMessage(AbstractMessage message) {
         client.sendMessage(message);
@@ -128,7 +129,6 @@ public class ClientController implements Initializable {
             }
         });
         return list;
-
     }
 
     private List<String> getFileList(Path p) {
@@ -164,11 +164,13 @@ public class ClientController implements Initializable {
     private Path react(ListView<String> listView, Path path) {
         String selected = listView.getSelectionModel().getSelectedItem();
         if (selected != null) {
+            System.out.println("selected:" + selected);
             if (selected.equals("../")) {
                 Path temp = path.getParent();
                 path = temp == null ? path : temp;
             } else if (selected.endsWith("/")) {
                 path = path.resolve(selected.split("/")[0]);
+
             }
         }
         return path;
@@ -179,6 +181,11 @@ public class ClientController implements Initializable {
             label.setText(path.toString());
             listView.getItems().clear();
             listView.getItems().add("../");
+            System.out.println(path);
+            System.out.println(rootName);
+            if (path.getFileName().toString().equals(rootName)) {
+                listView.getItems().add("Shared files/");
+            }
             listView.getItems().addAll(list);
         });
     }
@@ -191,10 +198,11 @@ public class ClientController implements Initializable {
     }
 
     private void refreshServerView() {
-        updateView(serverFileList,
-                sortFileList(navigator.getFileList(currentServerPath)),
-                serverPathLabel,
-                currentServerPath);
+        Command cmd = Command.FILE_LIST;
+        if (Path.of(rootName).resolve("Shared files/").toString().equals(currentServerPath.toString())) {
+            cmd = Command.SHARED_FILES;
+        }
+        client.sendMessage(new StringMessage(cmd, currentServerPath.toString()));
     }
 
     private static String cutLabelName(String labelName) {
@@ -208,6 +216,7 @@ public class ClientController implements Initializable {
     private void sendPackage(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
             sendPackage();
+            refreshServerView();
         }
     }
 
@@ -222,7 +231,7 @@ public class ClientController implements Initializable {
             try {
                 byte[] arr = Files.readAllBytes(sendingFile);
                 Path pathOnServer = currentServerPath.resolve(sendingFile.getFileName());
-                PackedFile pf = new PackedFile(pathOnServer.toString(), arr);
+                PackedFileMessage pf = new PackedFileMessage(pathOnServer.toString(), arr);
                 client.sendMessage(pf);
             } catch (IOException e) {
                 log.error("Error: " + e);
@@ -237,7 +246,7 @@ public class ClientController implements Initializable {
             if (name != null) {
                 String newPath = currentServerPath.resolve(name) + "/";
                 System.out.println("create on server: " + newPath);
-                client.sendMessage(new Message("CREATE_DIR " + newPath));
+                client.sendMessage(new StringMessage(Command.CREATE_DIR, newPath));
             }
         }
     }
@@ -343,14 +352,18 @@ public class ClientController implements Initializable {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
             removeOnServer();
         }
+        refreshServerView();
     }
 
     private void removeOnServer() {
         String name = serverFileList.getSelectionModel().getSelectedItem();
-        name = currentServerPath + "/" + name;
-        System.out.println(name);
         if (askAlert("Do you really want removing " + name + "?")) {
-            sendMessage(new Message("REMOVE " + name));
+            if (currentServerPath.toString().equals(rootName + "/" + SHARED_FILES)) {
+                sendMessage(new StringMessage(Command.REMOVE_SHARED, rootName + " " +name));
+            } else {
+                name = currentServerPath + "/" + name;
+                sendMessage(new StringMessage(Command.REMOVE, name));
+            }
         }
     }
 
@@ -362,11 +375,18 @@ public class ClientController implements Initializable {
     }
 
     private void download() {
+        String prefix;
+        if (currentServerPath.toString().equals(rootName + "/Shared files")) {
+            prefix = "";
+        } else {
+            prefix = currentServerPath + "/";
+        }
         String name = serverFileList.getSelectionModel().getSelectedItem();
         if (name.endsWith("/")) {
             showAlert("Sorry. I can't download directories yet((");
         } else {
-            sendMessage(new Message("DOWNLOAD " + currentServerPath + "/" + name));
+
+            sendMessage(new StringMessage(Command.DOWNLOAD, prefix + name));
         }
     }
 
@@ -419,6 +439,7 @@ public class ClientController implements Initializable {
             showAlert("Can't read file attributes: \n" + e);
         }
     }
+
     private void showReport(String contentText, String title) {
         final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
                 new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
@@ -428,5 +449,18 @@ public class ClientController implements Initializable {
 
     public void sm_rename(ActionEvent event) {
         //todo
+    }
+
+    public boolean isAuthorized() {
+        return authorized;
+    }
+
+    public void share(ActionEvent event) {
+        String login = getTextFromUser("Share", "Input user login to share", "User login");
+        if (login==null) return;
+        String fileName = serverFileList.getSelectionModel().getSelectedItem();
+        System.out.println(currentServerPath);
+        Path path = currentServerPath.resolve(fileName);
+        sendMessage(new StringMessage(Command.SHARE, rootName + " " + login + " " + path));
     }
 }
