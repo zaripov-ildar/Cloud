@@ -11,12 +11,14 @@ import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import lombok.extern.slf4j.Slf4j;
+import ru.starstreet.cloud.server.DB.TempDataBaseService;
 
 import java.nio.file.Path;
 
 @Slf4j
 public class NettyServer {
     private static final int PORT = 8189;
+    private static TempDataBaseService service = new TempDataBaseService();
 
     public static void main(String[] args) {
         EventLoopGroup auth = new NioEventLoopGroup(1);
@@ -31,7 +33,7 @@ public class NettyServer {
                             channel.pipeline().addLast(
                                     new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),
-                                    new PackedFileHandler()
+                                    new PackedFileHandler(service)
                             );
                         }
                     })

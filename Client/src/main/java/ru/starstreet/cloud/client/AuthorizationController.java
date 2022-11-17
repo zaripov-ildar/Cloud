@@ -21,6 +21,7 @@ public class AuthorizationController {
 
     public void authorize(ActionEvent actionEvent) throws InterruptedException {
         String login = loginField.getText();
+        controller.setRooName(login);
         String password = passwordField.getText();
         controller.sendMessage(new StringMessage(Command.AUTH, login + " " + password));
         TimeUnit.MILLISECONDS.sleep(500);

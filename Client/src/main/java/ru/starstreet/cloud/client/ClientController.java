@@ -24,6 +24,7 @@ import static ru.starstreet.cloud.core.Utils.HelpfulMethods.recursiveRemoving;
 
 @Slf4j
 public class ClientController implements Initializable {
+    public static final String SHARED_FILES = "Shared files";
     private boolean authorized;
     private Path currentClientPath;
     private Path currentServerPath;
@@ -40,6 +41,11 @@ public class ClientController implements Initializable {
     private ContextMenu clientMenu;
     @FXML
     private ContextMenu serverMenu;
+    private String rootName;
+
+    public void setRooName(String rooName) {
+        this.rootName = rooName;
+    }
 
     private void getOnMsgReceived(AbstractMessage abstractMessage) {
         if (abstractMessage instanceof StringMessage msg) {
@@ -47,18 +53,21 @@ public class ClientController implements Initializable {
             String argument = msg.getArgument();
             System.out.println(cmd + ">>>" + argument);
 
-            if (cmd == Command.PASSED){
-                currentServerPath = Path.of(msg.getArgument());
-                authorized = true;
-                refreshServerView();
-
-            } else if (cmd == Command.FILE_LIST){
-                JSONArray arr = new JSONArray(argument);
-                List<String> files = new ArrayList<>();
-                for (Object o : arr) {
-                    files.add((String)o);
+            switch (cmd) {
+                case PASSED -> {
+                    currentServerPath = Path.of(msg.getArgument());
+                    authorized = true;
+                    refreshServerView();
                 }
-                updateView(serverFileList, files, serverPathLabel, currentServerPath);
+                case FILE_LIST, SHARED_FILES -> {
+                    JSONArray arr = new JSONArray(argument);
+                    List<String> files = new ArrayList<>();
+                    for (Object o : arr) {
+                        files.add((String) o);
+                    }
+                    updateView(serverFileList, files, serverPathLabel, currentServerPath);
+                }
+
             }
 
         } else if (abstractMessage instanceof PackedFileMessage pf) {
@@ -155,11 +164,13 @@ public class ClientController implements Initializable {
     private Path react(ListView<String> listView, Path path) {
         String selected = listView.getSelectionModel().getSelectedItem();
         if (selected != null) {
+            System.out.println("selected:" + selected);
             if (selected.equals("../")) {
                 Path temp = path.getParent();
                 path = temp == null ? path : temp;
             } else if (selected.endsWith("/")) {
                 path = path.resolve(selected.split("/")[0]);
+
             }
         }
         return path;
@@ -170,6 +181,11 @@ public class ClientController implements Initializable {
             label.setText(path.toString());
             listView.getItems().clear();
             listView.getItems().add("../");
+            System.out.println(path);
+            System.out.println(rootName);
+            if (path.getFileName().toString().equals(rootName)) {
+                listView.getItems().add("Shared files/");
+            }
             listView.getItems().addAll(list);
         });
     }
@@ -182,7 +198,11 @@ public class ClientController implements Initializable {
     }
 
     private void refreshServerView() {
-        client.sendMessage(new StringMessage(Command.FILE_LIST, currentServerPath.toString()));
+        Command cmd = Command.FILE_LIST;
+        if (Path.of(rootName).resolve("Shared files/").toString().equals(currentServerPath.toString())) {
+            cmd = Command.SHARED_FILES;
+        }
+        client.sendMessage(new StringMessage(cmd, currentServerPath.toString()));
     }
 
     private static String cutLabelName(String labelName) {
@@ -196,6 +216,7 @@ public class ClientController implements Initializable {
     private void sendPackage(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
             sendPackage();
+            refreshServerView();
         }
     }
 
@@ -331,14 +352,18 @@ public class ClientController implements Initializable {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
             removeOnServer();
         }
+        refreshServerView();
     }
 
     private void removeOnServer() {
         String name = serverFileList.getSelectionModel().getSelectedItem();
-        name = currentServerPath + "/" + name;
-        System.out.println(name);
         if (askAlert("Do you really want removing " + name + "?")) {
-            sendMessage(new StringMessage(Command.REMOVE, name));
+            if (currentServerPath.toString().equals(rootName + "/" + SHARED_FILES)) {
+                sendMessage(new StringMessage(Command.REMOVE_SHARED, rootName + " " +name));
+            } else {
+                name = currentServerPath + "/" + name;
+                sendMessage(new StringMessage(Command.REMOVE, name));
+            }
         }
     }
 
@@ -350,11 +375,18 @@ public class ClientController implements Initializable {
     }
 
     private void download() {
+        String prefix;
+        if (currentServerPath.toString().equals(rootName + "/Shared files")) {
+            prefix = "";
+        } else {
+            prefix = currentServerPath + "/";
+        }
         String name = serverFileList.getSelectionModel().getSelectedItem();
         if (name.endsWith("/")) {
             showAlert("Sorry. I can't download directories yet((");
         } else {
-            sendMessage(new StringMessage(Command.DOWNLOAD, currentServerPath + "/" + name));
+
+            sendMessage(new StringMessage(Command.DOWNLOAD, prefix + name));
         }
     }
 
@@ -407,6 +439,7 @@ public class ClientController implements Initializable {
             showAlert("Can't read file attributes: \n" + e);
         }
     }
+
     private void showReport(String contentText, String title) {
         final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
                 new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
@@ -420,5 +453,14 @@ public class ClientController implements Initializable {
 
     public boolean isAuthorized() {
         return authorized;
+    }
+
+    public void share(ActionEvent event) {
+        String login = getTextFromUser("Share", "Input user login to share", "User login");
+        if (login==null) return;
+        String fileName = serverFileList.getSelectionModel().getSelectedItem();
+        System.out.println(currentServerPath);
+        Path path = currentServerPath.resolve(fileName);
+        sendMessage(new StringMessage(Command.SHARE, rootName + " " + login + " " + path));
     }
 }
