@@ -1,21 +1,16 @@
 package ru.starstreet.cloud.core;
 
+import org.json.JSONArray;
 
+import java.io.File;
 import java.nio.file.Path;
+import java.sql.*;
+import java.util.List;
+
 
 public class test {
-    public static void main(String[] args) {
-//        JSONObject object = new JSONObject("{\"name\":\"user\",\"/user\": []}");
-//        JSONNavigator nav = new JSONNavigator(object);
-//        nav.addToFolder("/user", "folder1/");
-//        nav.addToFolder("/user/folder1", "file1.txt");
-//        nav.addToFolder("/user", "file2.txt");
-//        nav.addToFolder("/user", "folder2/");
-//        System.out.println(nav.getFileList("/user"));
-       String p = "p//t/";
-       Path path = Path.of(p);
-        System.out.println(path);
+    public static void main(String[] args) throws ClassNotFoundException, SQLException {
 
-
+        System.out.println(Path.of("/").getFileName());
     }
 }

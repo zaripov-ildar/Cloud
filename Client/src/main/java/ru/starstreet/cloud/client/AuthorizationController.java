@@ -22,7 +22,7 @@ public class AuthorizationController {
     public void authorize(ActionEvent actionEvent) throws InterruptedException {
         String login = loginField.getText();
         controller.setRooName(login);
-        String password = passwordField.getText();
+        int password = passwordField.getText().hashCode();
         controller.sendMessage(new StringMessage(Command.AUTH, login + " " + password));
         TimeUnit.MILLISECONDS.sleep(500);
         if (controller.isConnected() && controller.isAuthorized()){
@@ -32,7 +32,7 @@ public class AuthorizationController {
             stage.close();
         } else if (controller.isConnected() && !controller.isAuthorized()){
             errorLabel.setVisible(true);
-            errorLabel.setText("Wrong Login/Password");
+            errorLabel.setText(controller.getAuthStatus());
         } else{
             errorLabel.setVisible(true);
             errorLabel.setText("Can't find server");

@@ -38,7 +38,7 @@
                                 <SeparatorMenuItem/>
                                 <MenuItem text="Delete" onAction="#cm_remove"/>
                                 <SeparatorMenuItem/>
-                                <MenuItem text="Properties" onAction="#cm_attributes"/>
+                                <MenuItem text="Properties" onAction="#cm_properties"/>
                             </items>
                         </ContextMenu>
                     </contextMenu>
@@ -96,7 +96,7 @@
                                 <SeparatorMenuItem/>
                                 <MenuItem text="Delete" onAction="#sm_remove"/>
                                 <SeparatorMenuItem/>
-                                <MenuItem text="Properties"/>
+                                <MenuItem text="Properties" onAction="#sm_properties"/>
                             </items>
                         </ContextMenu>
                     </contextMenu>

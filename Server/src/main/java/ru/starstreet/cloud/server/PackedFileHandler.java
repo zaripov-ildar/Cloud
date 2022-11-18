@@ -4,9 +4,9 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
 import ru.starstreet.cloud.core.*;
-import ru.starstreet.cloud.server.DB.DBService;
-import ru.starstreet.cloud.server.DB.TempDataBaseService;
+import ru.starstreet.cloud.server.DB.interfaces.DBService;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,8 +19,9 @@ import static ru.starstreet.cloud.core.Utils.HelpfulMethods.*;
 public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessage> {
     private final DBService service;
     private final Path STORAGE = Path.of("Storage");
+    private String login;
 
-    public PackedFileHandler(TempDataBaseService service) {
+    public PackedFileHandler(DBService service) {
         this.service = service;
     }
 
@@ -31,6 +32,7 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        service.clientLeaved(login);
         System.out.println("client disconnected");
     }
 
@@ -53,10 +55,15 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
             switch (cmd) {
                 case AUTH -> {
                     String[] pair = msg.getArgument().split(" ");
-                    if (service.isValidPass(pair[0], pair[1])) {
-                        currentPath = STORAGE.resolve(pair[0]);
+                    String login = pair[0];
+                    if (service.isLogged(login)) {
+                        ctx.writeAndFlush(new StringMessage(Command.AUTH, login + " is online already!"));
+                    } else if (service.isValidPass(login, Integer.parseInt(pair[1]))) {
+                        currentPath = STORAGE.resolve(login);
                         createDirIfNotExists(currentPath);
-                        ctx.writeAndFlush(new StringMessage(Command.PASSED, pair[0]));
+                        ctx.writeAndFlush(new StringMessage(Command.PASSED, login));
+                        this.login = login;
+                        service.addLogin(login);
                     } else {
                         ctx.writeAndFlush(new StringMessage(Command.AUTH, "Wrong login/password pair"));
 
@@ -81,9 +88,9 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                 case SHARE -> {
                     String[] args = argument.split(" ", 3);
                     String ownerLogin = args[0];
-                    String recipient = args[1];
+                    String recipientLogin = args[1];
                     String path = args[2];
-                    service.share(ownerLogin, recipient, path);
+                    service.share(ownerLogin, recipientLogin, path);
                 }
                 case REMOVE_SHARED -> {
                     System.out.println(argument);
@@ -92,6 +99,32 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                     String path = args[1];
                     service.removeRecipient(recipient, path);
                 }
+                case RENAME -> {
+                    String[] args = argument.split("#");
+                    File oldFile = STORAGE.resolve(args[0]).toAbsolutePath().toFile();
+                    File newFile = STORAGE.resolve(args[1]).toAbsolutePath().toFile();
+
+                    if (newFile.exists()) {
+                        ctx.writeAndFlush(new StringMessage(Command.RENAME, args[1] + "\nis already exist!"));
+                        return;
+                    }
+                    boolean result = oldFile.renameTo(newFile);
+                    if (result) {
+                        sendFileList(ctx, newFile.toPath().getParent());
+                        service.renameIfShared(oldFile.toString(), newFile.toString());
+                    } else {
+                        ctx.writeAndFlush(new StringMessage(Command.RENAME, "Couldn't rename: " + oldFile + " to " + newFile));
+                    }
+                }
+                case PROPERTIES -> {
+                    try {
+                        String atr = getAttributes(STORAGE.resolve(argument).toAbsolutePath());
+                        ctx.writeAndFlush(new StringMessage(Command.PROPERTIES, atr));
+                    } catch (IOException e) {
+                        log.error(e.getMessage());
+                    }
+                }
+
             }
         }
     }

@@ -42,6 +42,32 @@ public class ClientController implements Initializable {
     @FXML
     private ContextMenu serverMenu;
     private String rootName;
+    private String authStatus;
+    private Path ROOT;
+
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        currentClientPath = Path.of(System.getProperty("user.home")).toAbsolutePath();
+        ROOT = File.listRoots()[0].toPath();
+        client = new NettyClient(this::getOnMsgReceived);
+        refreshClientView();
+
+        clientFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY) {
+                clientMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
+            }
+        });
+        serverFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY) {
+                serverMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
+            }
+        });
+    }
+
+    public String getAuthStatus() {
+        return authStatus;
+    }
+
 
     public void setRooName(String rooName) {
         this.rootName = rooName;
@@ -54,6 +80,7 @@ public class ClientController implements Initializable {
             System.out.println(cmd + ">>>" + argument);
 
             switch (cmd) {
+                case AUTH -> authStatus = argument;
                 case PASSED -> {
                     currentServerPath = Path.of(msg.getArgument());
                     authorized = true;
@@ -67,6 +94,8 @@ public class ClientController implements Initializable {
                     }
                     updateView(serverFileList, files, serverPathLabel, currentServerPath);
                 }
+                case RENAME -> showAlert(argument);
+                case PROPERTIES -> showReport(argument, "File attributes");
 
             }
 
@@ -132,7 +161,9 @@ public class ClientController implements Initializable {
     }
 
     private List<String> getFileList(Path p) {
+        System.out.println("path: " + p);
         File[] list = p.toFile().listFiles();
+        System.out.println(Arrays.toString(list));
         return Arrays.stream(list)
                 .filter(File::canRead)
                 .map(f -> {
@@ -144,27 +175,15 @@ public class ClientController implements Initializable {
                 .collect(Collectors.toList());
     }
 
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        currentClientPath = Path.of(System.getProperty("user.home"));
-        client = new NettyClient(this::getOnMsgReceived);
-        refreshClientView();
-        clientFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
-            if (event.getButton() == MouseButton.SECONDARY) {
-                clientMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
-            }
-        });
-        serverFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
-            if (event.getButton() == MouseButton.SECONDARY) {
-                serverMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
-            }
-        });
-    }
+
 
     private Path react(ListView<String> listView, Path path) {
         String selected = listView.getSelectionModel().getSelectedItem();
         if (selected != null) {
             System.out.println("selected:" + selected);
+            if (selected.equals(ROOT.toString())){
+                return ROOT;
+            }
             if (selected.equals("../")) {
                 Path temp = path.getParent();
                 path = temp == null ? path : temp;
@@ -183,7 +202,7 @@ public class ClientController implements Initializable {
             listView.getItems().add("../");
             System.out.println(path);
             System.out.println(rootName);
-            if (path.getFileName().toString().equals(rootName)) {
+            if (!path.toString().equals(ROOT.toString()) && path.getFileName().toString().equals(rootName)) {
                 listView.getItems().add("Shared files/");
             }
             listView.getItems().addAll(list);
@@ -198,11 +217,12 @@ public class ClientController implements Initializable {
     }
 
     private void refreshServerView() {
-        Command cmd = Command.FILE_LIST;
         if (Path.of(rootName).resolve("Shared files/").toString().equals(currentServerPath.toString())) {
-            cmd = Command.SHARED_FILES;
+
+            client.sendMessage(new StringMessage(Command.SHARED_FILES, rootName));
+        } else {
+            client.sendMessage(new StringMessage(Command.FILE_LIST, currentServerPath.toString()));
         }
-        client.sendMessage(new StringMessage(cmd, currentServerPath.toString()));
     }
 
     private static String cutLabelName(String labelName) {
@@ -285,10 +305,12 @@ public class ClientController implements Initializable {
     }
 
     private void showAlert(String contentText) {
-        final Alert alert = new Alert(Alert.AlertType.ERROR, contentText,
-                new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
-        alert.setTitle("Something goes wrong");
-        alert.showAndWait();
+        Platform.runLater(() -> {
+            final Alert alert = new Alert(Alert.AlertType.ERROR, contentText,
+                    new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
+            alert.setTitle("Something goes wrong");
+            alert.showAndWait();
+        });
     }
 
     @FXML
@@ -359,7 +381,7 @@ public class ClientController implements Initializable {
         String name = serverFileList.getSelectionModel().getSelectedItem();
         if (askAlert("Do you really want removing " + name + "?")) {
             if (currentServerPath.toString().equals(rootName + "/" + SHARED_FILES)) {
-                sendMessage(new StringMessage(Command.REMOVE_SHARED, rootName + " " +name));
+                sendMessage(new StringMessage(Command.REMOVE_SHARED, rootName + " " + name));
             } else {
                 name = currentServerPath + "/" + name;
                 sendMessage(new StringMessage(Command.REMOVE, name));
@@ -393,11 +415,13 @@ public class ClientController implements Initializable {
     @FXML
     private void cm_send(ActionEvent event) {
         sendPackage();
+        refreshServerView();
     }
 
     @FXML
     private void cm_remove(ActionEvent event) {
         removeOnClient();
+
     }
 
     @FXML
@@ -408,6 +432,7 @@ public class ClientController implements Initializable {
     @FXML
     private void sm_remove(ActionEvent event) {
         removeOnServer();
+        refreshServerView();
     }
 
     public void renameOnClient(ActionEvent event) {
@@ -415,7 +440,6 @@ public class ClientController implements Initializable {
         File oldName = currentClientPath.resolve(file).toAbsolutePath().toFile();
         String newName = getTextFromUser("Rename", "Enter new name", "New name");
         if (newName != null) {
-
             File newFile = currentClientPath.resolve(newName).toAbsolutePath().toFile();
             if (newFile.exists()) {
                 showAlert(newFile + " already exists!!!");
@@ -430,7 +454,7 @@ public class ClientController implements Initializable {
         }
     }
 
-    public void cm_attributes(ActionEvent event) {
+    public void cm_properties(ActionEvent event) {
         String selected = clientFileList.getSelectionModel().getSelectedItem();
         Path path = currentClientPath.resolve(selected).toAbsolutePath();
         try {
@@ -441,14 +465,27 @@ public class ClientController implements Initializable {
     }
 
     private void showReport(String contentText, String title) {
-        final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
-                new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
-        alert.setTitle(title);
-        alert.showAndWait();
+        Platform.runLater(()->{
+            final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
+                    new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
+            alert.setTitle(title);
+            alert.showAndWait();
+        });
     }
 
-    public void sm_rename(ActionEvent event) {
-        //todo
+    @FXML
+    private void sm_rename() {
+        String file = serverFileList.getSelectionModel().getSelectedItem();
+        File oldName = currentServerPath.resolve(file).toFile();
+        String newName = getTextFromUser("Rename", "Enter new name", "New name");
+        if (newName != null) {
+            if (oldName.toString().startsWith(rootName + "/" + SHARED_FILES)) {
+                showAlert("You have no rights to rename this");
+            } else {
+                File newFile = currentServerPath.resolve(newName).toFile();
+                sendMessage(new StringMessage(Command.RENAME, oldName + "#" + newFile));
+            }
+        }
     }
 
     public boolean isAuthorized() {
@@ -457,10 +494,15 @@ public class ClientController implements Initializable {
 
     public void share(ActionEvent event) {
         String login = getTextFromUser("Share", "Input user login to share", "User login");
-        if (login==null) return;
+        if (login == null) return;
         String fileName = serverFileList.getSelectionModel().getSelectedItem();
         System.out.println(currentServerPath);
         Path path = currentServerPath.resolve(fileName);
         sendMessage(new StringMessage(Command.SHARE, rootName + " " + login + " " + path));
+    }
+
+    public void sm_properties(ActionEvent event) {
+        String file = serverFileList.getSelectionModel().getSelectedItem();
+        sendMessage(new StringMessage(Command.PROPERTIES, currentServerPath.resolve(file).toString()));
     }
 }
