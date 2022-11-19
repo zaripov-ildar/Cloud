@@ -13,6 +13,7 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 import lombok.extern.slf4j.Slf4j;
 import ru.starstreet.cloud.server.DB.interfaces.DBService;
 import ru.starstreet.cloud.server.DB.H2Db.H2DbService;
+import io.netty.handler.stream.ChunkedWriteHandler;
 
 @Slf4j
 public class NettyServer {
@@ -32,7 +33,8 @@ public class NettyServer {
                             channel.pipeline().addLast(
                                     new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),
-                                    new PackedFileHandler(service)
+                                    new PackedFileHandler(service),
+                                    new ChunkedWriteHandler()
                             );
                         }
                     })

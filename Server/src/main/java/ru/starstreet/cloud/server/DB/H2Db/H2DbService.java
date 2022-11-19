@@ -30,9 +30,6 @@ public class H2DbService implements DBService {
 
     @Override
     public void share(String ownerLogin, String recipient, String path) {
-        System.out.println(db.getUserId(ownerLogin));
-        System.out.println(db.getUserId(recipient));
-        System.out.println(path);
         db.share(db.getUserId(ownerLogin),
                 db.getUserId(recipient),
                 path);

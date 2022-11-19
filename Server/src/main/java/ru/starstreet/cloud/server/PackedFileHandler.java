@@ -38,19 +38,10 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, AbstractMessage message) {
-        if (message instanceof PackedFileMessage pf) {
-            Path path = STORAGE.resolve(pf.getPath());
-            try {
-                Files.write(path, pf.getBytes());
-                ctx.writeAndFlush(new StringMessage(Command.FILE_LIST, getFilesAsString(path)));
-            } catch (IOException e) {
-                log.error(e.getMessage());
-            }
-        } else if (message instanceof StringMessage msg) {
+        if (message instanceof StringMessage msg) {
             Command cmd = msg.getCmd();
             String argument = msg.getArgument();
             Path currentPath = STORAGE.resolve(argument);
-            System.out.println(cmd + ">>>" + argument);
 
             switch (cmd) {
                 case AUTH -> {
@@ -70,7 +61,6 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                     }
                 }
                 case FILE_LIST -> sendFileList(ctx, currentPath);
-                case DOWNLOAD -> sendFile(ctx, currentPath);
                 case REMOVE -> {
                     List<String> deletedFileList = new ArrayList<>();
                     recursiveRemoving(currentPath.toFile(), deletedFileList);
@@ -93,7 +83,6 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                     service.share(ownerLogin, recipientLogin, path);
                 }
                 case REMOVE_SHARED -> {
-                    System.out.println(argument);
                     String[] args = argument.split(" ", 2);
                     String recipient = args[0];
                     String path = args[1];
@@ -124,17 +113,16 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                         log.error(e.getMessage());
                     }
                 }
+                case TRANSFER -> {
+                    sendBigFile(argument, ctx::writeAndFlush);
+                }
 
             }
-        }
-    }
-
-    private void sendFile(ChannelHandlerContext ctx, Path path) {
-        try {
-            byte[] bytes = Files.readAllBytes(path);
-            ctx.writeAndFlush(new PackedFileMessage(path.getFileName().toString(), bytes));
-        } catch (IOException e) {
-            log.error(e.getMessage());
+        } else if (message instanceof BigFile chunk) {
+            Path toRefresh = Path.of(chunk.getDestination()).getParent();
+            receiveBigFile(chunk,
+                    () -> this.sendFileList(ctx, toRefresh),
+                    ctx::writeAndFlush);
         }
     }
 

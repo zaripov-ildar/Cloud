@@ -8,6 +8,7 @@ module ru.starstreet.cloud.client {
     requires lombok;
     requires org.json;
     requires io.netty.buffer;
+    requires io.netty.handler;
 
 
     opens ru.starstreet.cloud.client to javafx.fxml;

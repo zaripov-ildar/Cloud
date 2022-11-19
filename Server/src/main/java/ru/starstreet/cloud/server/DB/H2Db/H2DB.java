@@ -82,7 +82,7 @@ public class H2DB implements Closeable, AbstractDB {
     @Override
     public void updateFileName(String oldName, String newName) {
         String query = "UPDATE sharedFiles " +
-                "SET fileName = '" + newName +"'" +
+                "SET fileName = '" + newName + "'" +
                 "WHERE fileName = '" + oldName + "'";
         try {
             statement.executeUpdate(query);
@@ -93,7 +93,10 @@ public class H2DB implements Closeable, AbstractDB {
 
     @Override
     public List<String> getSharedFiles(String recipientLogin) {
-        String query = "SELECT fileName FROM sharedFiles;";
+        String query = "SELECT fileName FROM clients c " +
+                "JOIN sharedFilesUsers sfu ON c.id = sfu.recipient_id " +
+                "JOIN sharedFiles sf ON sf.id = sfu.file_id " +
+                "WHERE login ='" + recipientLogin + "';";
         List<String> result = new ArrayList<>();
         try {
             ResultSet set = statement.executeQuery(query);
@@ -133,7 +136,7 @@ public class H2DB implements Closeable, AbstractDB {
                     "INSERT INTO sharedFilesUsers (recipient_id, owner_id, file_id)" +
                     "VALUES(%d, %d, %d)", recipientId, ownerId, fileId);
             statement.executeUpdate(query);
-
+            printSharedFiles();
         } catch (SQLException e) {
             log.error(e.getMessage());
         }
@@ -162,7 +165,7 @@ public class H2DB implements Closeable, AbstractDB {
         try {
             statement.executeUpdate(query);
             ResultSet set = statement.executeQuery("" +
-                    "SELECT * FROM sharedFIlesUsers " +
+                    "SELECT * FROM sharedFilesUsers " +
                     "WHERE file_id =" + fileId);
             int size = set.getFetchSize();
             if (size == 0) {
@@ -179,6 +182,7 @@ public class H2DB implements Closeable, AbstractDB {
                 "WHERE id = " + id;
         try {
             statement.executeUpdate(query);
+            printSharedFiles();
         } catch (SQLException e) {
             log.error(e.getMessage());
         }
@@ -203,6 +207,17 @@ public class H2DB implements Closeable, AbstractDB {
         try {
             statement.executeUpdate("DELETE FROM sharedFiles " +
                     "WHERE fileName = '" + fileName + "';");
+        } catch (SQLException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void printSharedFiles(){
+        try {
+            ResultSet set = statement.executeQuery("Select * from sharedFiles;");
+            while (set.next()){
+                System.out.println(set.getString("fileName"));
+            }
         } catch (SQLException e) {
             log.error(e.getMessage());
         }

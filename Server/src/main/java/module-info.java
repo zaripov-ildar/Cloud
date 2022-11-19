@@ -8,4 +8,5 @@ module Server {
     requires Core;
     requires java.sql;
     requires com.h2database;
+    requires io.netty.handler;
 }

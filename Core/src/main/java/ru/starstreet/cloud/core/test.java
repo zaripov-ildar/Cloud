@@ -10,7 +10,7 @@ import java.util.List;
 
 public class test {
     public static void main(String[] args) throws ClassNotFoundException, SQLException {
-
-        System.out.println(Path.of("/").getFileName());
+        Path path = Path.of("q/").resolve("q/w/e");
+        System.out.println(path);
     }
 }

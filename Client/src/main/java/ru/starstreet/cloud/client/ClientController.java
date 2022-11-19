@@ -19,12 +19,13 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static ru.starstreet.cloud.core.Utils.HelpfulMethods.getAttributes;
-import static ru.starstreet.cloud.core.Utils.HelpfulMethods.recursiveRemoving;
+import static ru.starstreet.cloud.core.Utils.HelpfulMethods.*;
 
 @Slf4j
 public class ClientController implements Initializable {
+
     public static final String SHARED_FILES = "Shared files";
+    public static final String STORAGE = "Storage/";
     private boolean authorized;
     private Path currentClientPath;
     private Path currentServerPath;
@@ -77,7 +78,6 @@ public class ClientController implements Initializable {
         if (abstractMessage instanceof StringMessage msg) {
             Command cmd = msg.getCmd();
             String argument = msg.getArgument();
-            System.out.println(cmd + ">>>" + argument);
 
             switch (cmd) {
                 case AUTH -> authStatus = argument;
@@ -96,18 +96,15 @@ public class ClientController implements Initializable {
                 }
                 case RENAME -> showAlert(argument);
                 case PROPERTIES -> showReport(argument, "File attributes");
+                case TRANSFER ->{
+                    sendBigFile(argument, this::sendMessage);
 
+                }
             }
 
-        } else if (abstractMessage instanceof PackedFileMessage pf) {
-            String fileName = pf.getPath();
-            Path file = currentClientPath.resolve(fileName);
-            try {
-                Files.write(file, pf.getBytes());
-                refreshClientView();
-            } catch (IOException e) {
-                log.error("Error: " + e);
-            }
+        } else if (abstractMessage instanceof BigFile chunk) {
+
+            receiveBigFile(chunk, this::refreshClientView, this::sendMessage);
         }
     }
 
@@ -161,9 +158,7 @@ public class ClientController implements Initializable {
     }
 
     private List<String> getFileList(Path p) {
-        System.out.println("path: " + p);
         File[] list = p.toFile().listFiles();
-        System.out.println(Arrays.toString(list));
         return Arrays.stream(list)
                 .filter(File::canRead)
                 .map(f -> {
@@ -176,12 +171,10 @@ public class ClientController implements Initializable {
     }
 
 
-
     private Path react(ListView<String> listView, Path path) {
         String selected = listView.getSelectionModel().getSelectedItem();
         if (selected != null) {
-            System.out.println("selected:" + selected);
-            if (selected.equals(ROOT.toString())){
+            if (selected.equals(ROOT.toString())) {
                 return ROOT;
             }
             if (selected.equals("../")) {
@@ -200,8 +193,6 @@ public class ClientController implements Initializable {
             label.setText(path.toString());
             listView.getItems().clear();
             listView.getItems().add("../");
-            System.out.println(path);
-            System.out.println(rootName);
             if (!path.toString().equals(ROOT.toString()) && path.getFileName().toString().equals(rootName)) {
                 listView.getItems().add("Shared files/");
             }
@@ -233,31 +224,31 @@ public class ClientController implements Initializable {
     }
 
     @FXML
-    private void sendPackage(MouseEvent event) {
+    private void upload(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-            sendPackage();
+            upload();
             refreshServerView();
         }
     }
 
-    private void sendPackage() {
+    private void upload() {
         String fileName = clientFileList.getSelectionModel().getSelectedItem();
-        Path sendingFile = currentClientPath.resolve(fileName);
-        if (!Files.exists(sendingFile)) {
-            showAlert(sendingFile + " File not exist!!!");
-        } else if (Files.isDirectory(sendingFile)) {
+        Path departure = currentClientPath.resolve(fileName);
+        if (!Files.exists(departure)) {
+            showAlert(departure + " File not exist!!!");
+        } else if (Files.isDirectory(departure)) {
             showAlert("Sorry. I can't send directories yet((");
         } else {
-            try {
-                byte[] arr = Files.readAllBytes(sendingFile);
-                Path pathOnServer = currentServerPath.resolve(sendingFile.getFileName());
-                PackedFileMessage pf = new PackedFileMessage(pathOnServer.toString(), arr);
-                client.sendMessage(pf);
-            } catch (IOException e) {
-                log.error("Error: " + e);
-            }
+            Path destination = currentServerPath.resolve(departure.getFileName());
+
+            sendPackage(departure.toString(), Path.of(STORAGE).resolve(destination).toAbsolutePath() + "/");
         }
     }
+
+    private void sendPackage(String departure, String destination) {
+        sendBigFile(departure + "#" + destination + "#0", this::sendMessage);
+    }
+
 
     @FXML
     private void createFolderOnServer(MouseEvent event) {
@@ -265,7 +256,6 @@ public class ClientController implements Initializable {
             String name = getNewFolderName();
             if (name != null) {
                 String newPath = currentServerPath.resolve(name) + "/";
-                System.out.println("create on server: " + newPath);
                 client.sendMessage(new StringMessage(Command.CREATE_DIR, newPath));
             }
         }
@@ -282,6 +272,9 @@ public class ClientController implements Initializable {
     private String getNewItemName(String item) {
         String newName = getTextFromUser("Create new" + item,
                 "Enter " + item + " name:", "New " + item);
+        if (newName==null){
+            return null;
+        }
         if (newName.length() > 255) {
             showAlert("Too long " + item + "filename!");
             return null;
@@ -392,29 +385,37 @@ public class ClientController implements Initializable {
     @FXML
     private void download(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-            download();
+            try {
+                download();
+            } catch (IOException e) {
+                log.error(e.getMessage());
+            }
         }
     }
 
-    private void download() {
-        String prefix;
-        if (currentServerPath.toString().equals(rootName + "/Shared files")) {
-            prefix = "";
-        } else {
-            prefix = currentServerPath + "/";
-        }
+    private void download() throws IOException {
+        File departure;
+        File destination;
         String name = serverFileList.getSelectionModel().getSelectedItem();
         if (name.endsWith("/")) {
             showAlert("Sorry. I can't download directories yet((");
         } else {
-
-            sendMessage(new StringMessage(Command.DOWNLOAD, prefix + name));
+            if (currentServerPath.startsWith(rootName + "/" + SHARED_FILES)) {
+                departure = new File(STORAGE + name);
+                Path file = Path.of(name).getFileName();
+                destination = currentClientPath.resolve(file).toFile();
+            } else {
+                departure = new File(STORAGE + currentServerPath + "/"+ name);
+                destination = currentClientPath.resolve(name).toFile();
+            }
+            System.out.println(destination + ": " + destination.exists());
+            sendMessage(new StringMessage(Command.TRANSFER, departure + "#" + destination + "#0"));
         }
     }
 
     @FXML
     private void cm_send(ActionEvent event) {
-        sendPackage();
+        upload();
         refreshServerView();
     }
 
@@ -426,7 +427,11 @@ public class ClientController implements Initializable {
 
     @FXML
     private void sm_download(ActionEvent event) {
-        download();
+        try {
+            download();
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
     }
 
     @FXML
@@ -465,7 +470,7 @@ public class ClientController implements Initializable {
     }
 
     private void showReport(String contentText, String title) {
-        Platform.runLater(()->{
+        Platform.runLater(() -> {
             final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
                     new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
             alert.setTitle(title);
@@ -496,13 +501,25 @@ public class ClientController implements Initializable {
         String login = getTextFromUser("Share", "Input user login to share", "User login");
         if (login == null) return;
         String fileName = serverFileList.getSelectionModel().getSelectedItem();
-        System.out.println(currentServerPath);
         Path path = currentServerPath.resolve(fileName);
         sendMessage(new StringMessage(Command.SHARE, rootName + " " + login + " " + path));
     }
 
     public void sm_properties(ActionEvent event) {
         String file = serverFileList.getSelectionModel().getSelectedItem();
-        sendMessage(new StringMessage(Command.PROPERTIES, currentServerPath.resolve(file).toString()));
+        System.out.println(currentServerPath);
+        if (currentServerPath.toString().startsWith(rootName + "/" + SHARED_FILES)) {
+            sendMessage(new StringMessage(Command.PROPERTIES, file));
+        } else {
+            sendMessage(new StringMessage(Command.PROPERTIES, currentServerPath.resolve(file).toString()));
+        }
     }
+
+
+    public void sendingFiles(MouseEvent event) {
+        Platform.runLater(()->{
+            showReport(getSendingFiles(), "Sending files");
+        });
+    }
+
 }
