@@ -75,7 +75,7 @@ public class HelpfulMethods {
         return arr.toString();
     }
 
-    public static void sendBigFile(String argument, BigFileSender sender) {
+    public static void sendChunk(String argument, BigFileSender sender) {
         String[] args = argument.split("#");
         String departure = new File(args[0]).getAbsolutePath();
         String destination = args[1];
@@ -86,15 +86,19 @@ public class HelpfulMethods {
             file.seek(position);
             int read = file.read(bytes);
             long size = file.length();
-            sendingFiles.put(Path.of(destination).getFileName().toString(), (float) position / size);
+            if (size != 0) {
+                sendingFiles.put(Path.of(destination).getFileName().toString(), (float) position / size);
+            }
             sender.sendFile(new Chunk(bytes, position, read, departure, destination, size));
         } catch (IOException e) {
             log.error(">>>" + e);
         }
     }
 
-    public static void receiveBigFile(Chunk chunk, OnDownloadEnd notifier, MessageSender sender) {
-        sendingFiles.put(chunk.getDestination(), (float) chunk.getPosition() / chunk.getSize());
+    public static void receiveChunk(Chunk chunk, OnDownloadEnd notifier, MessageSender sender) {
+        if (chunk.getSize() != 0) {
+            sendingFiles.put(chunk.getDestination(), (float) chunk.getPosition() / chunk.getSize());
+        }
         File destination = new File(chunk.getDestination());
         if (!destination.exists()) {
             try {

@@ -113,12 +113,12 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                         log.error(e.getMessage());
                     }
                 }
-                case TRANSFER -> sendBigFile(argument, ctx::writeAndFlush);
+                case TRANSFER -> sendChunk(argument, ctx::writeAndFlush);
 
             }
         } else if (message instanceof Chunk chunk) {
             Path toRefresh = Path.of(chunk.getDestination()).getParent();
-            receiveBigFile(chunk,
+            receiveChunk(chunk,
                     () -> this.sendFileList(ctx, toRefresh),
                     ctx::writeAndFlush);
         }

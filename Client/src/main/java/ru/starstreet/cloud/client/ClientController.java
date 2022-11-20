@@ -95,12 +95,12 @@ public class ClientController implements Initializable {
                 }
                 case RENAME -> showAlert(argument);
                 case PROPERTIES -> showReport(argument, "File attributes");
-                case TRANSFER -> sendBigFile(argument, this::sendMessage);
+                case TRANSFER -> sendChunk(argument, this::sendMessage);
             }
 
         } else if (abstractMessage instanceof Chunk chunk) {
 
-            receiveBigFile(chunk, this::refreshClientView, this::sendMessage);
+            receiveChunk(chunk, this::refreshClientView, this::sendMessage);
         }
     }
 
@@ -236,7 +236,7 @@ public class ClientController implements Initializable {
     }
 
     private void sendPackage(String departure, String destination) {
-        sendBigFile(departure + "#" + destination + "#0", this::sendMessage);
+        sendChunk(departure + "#" + destination + "#0", this::sendMessage);
     }
 
 

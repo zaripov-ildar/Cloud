@@ -38,7 +38,7 @@
                     <appendAssemblyId>false</appendAssemblyId>
                     <archive>
                         <manifest>
-                            <mainClass>ru.starstreet.cloud.server.NettyServer</mainClass>
+                            <mainClass>ru.starstreet.cloud.server.Server</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

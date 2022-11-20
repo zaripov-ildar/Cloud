@@ -16,7 +16,7 @@ import ru.starstreet.cloud.server.DB.H2Db.H2DbService;
 import io.netty.handler.stream.ChunkedWriteHandler;
 
 @Slf4j
-public class NettyServer {
+public class Server {
     private static final int PORT = 8189;
     private static final DBService service = new H2DbService();
 
