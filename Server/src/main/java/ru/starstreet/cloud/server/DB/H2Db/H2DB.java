@@ -125,6 +125,7 @@ public class H2DB implements Closeable, AbstractDB {
 
     @Override
     public void share(int ownerId, int recipientId, String path) {
+        System.out.println("sharing file name: " + path);
         String query =
                 "INSERT INTO sharedFiles (fileName)" +
                         "VALUES ('" + path + "');";
@@ -183,6 +184,7 @@ public class H2DB implements Closeable, AbstractDB {
         } catch (SQLException e) {
             log.error(e.getMessage());
         }
+
     }
 
     @Override
@@ -202,8 +204,12 @@ public class H2DB implements Closeable, AbstractDB {
     @Override
     public void removeSharedFile(String fileName) {
         try {
+            System.out.println("removed file name: " + fileName);
+            int fileId = getSharedFileId(fileName);
             statement.executeUpdate("DELETE FROM sharedFiles " +
-                    "WHERE fileName = '" + fileName + "';");
+                    "WHERE fileName = '" + fileName + "'; "+
+                    "DELETE FROM sharedFilesUsers " +
+                    "WHERE file_id = " + fileId + ";");
         } catch (SQLException e) {
             log.error(e.getMessage());
         }

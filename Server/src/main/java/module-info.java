@@ -5,8 +5,8 @@ module Server {
     requires lombok;
     requires org.json;
     requires io.netty.buffer;
-    requires Core;
     requires java.sql;
     requires com.h2database;
     requires io.netty.handler;
+    requires Core;
 }

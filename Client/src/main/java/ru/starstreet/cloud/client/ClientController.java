@@ -243,6 +243,10 @@ public class ClientController implements Initializable {
     @FXML
     private void createFolderOnServer(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+            if (currentServerPath.startsWith(rootName + "/Shared files")) {
+                showAlert("You can't create folder here!");
+                return;
+            }
             String name = getNewFolderName();
             if (name != null) {
                 String newPath = currentServerPath.resolve(name) + "/";
@@ -337,9 +341,17 @@ public class ClientController implements Initializable {
         String name = clientFileList.getSelectionModel().getSelectedItem();
         Path removingFile = currentClientPath.resolve(name);
         if (askAlert("Do you really want removing " + name + "?")) {
-            recursiveRemoving(removingFile.toFile());
+            List<String> deletedFileList = new ArrayList<>();
+            recursiveRemoving(removingFile.toFile(), deletedFileList);
+            showReport(listToString(deletedFileList), "Deleted files:");
             refreshClientView();
         }
+    }
+
+    private String listToString(List<String> list) {
+        StringBuilder sb = new StringBuilder();
+        list.forEach(f -> sb.append(f).append("\n"));
+        return sb.toString();
     }
 
     private boolean askAlert(String s) {

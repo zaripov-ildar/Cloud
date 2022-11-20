@@ -33,7 +33,6 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         service.clientLeaved(login);
-        service.close();
         System.out.println("client disconnected");
     }
 

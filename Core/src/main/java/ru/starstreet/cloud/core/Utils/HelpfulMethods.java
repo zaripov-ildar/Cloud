@@ -17,7 +17,6 @@ import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,22 +25,19 @@ import java.util.Map;
 public class HelpfulMethods {
     private static final Map<String, Float> sendingFiles = new HashMap<>();
 
-    public static void recursiveRemoving(File removingFile) {
-        List<String> result = new ArrayList<>();
-        recursiveRemoving(removingFile, result);
-
-    }
-
     public static void recursiveRemoving(File removingFile, List<String> list) {
         File[] deletingItems = removingFile.listFiles();
         if (deletingItems != null) {
             for (File file : deletingItems) {
-                recursiveRemoving(file);
+                recursiveRemoving(file, list);
             }
         }
-        String filePath = removingFile.getAbsolutePath().replace("Storage/", "");
+        String fileName = removingFile.toString();
+        if (fileName.startsWith("Storage/")) {
+            fileName = fileName.replace("Storage/", "");
+        }
         if (removingFile.delete()) {
-            list.add(filePath);
+            list.add(fileName);
         }
     }
 
