@@ -38,7 +38,7 @@
                                 <SeparatorMenuItem/>
                                 <MenuItem text="Delete" onAction="#cm_remove"/>
                                 <SeparatorMenuItem/>
-                                <MenuItem text="Properties" onAction="#cm_attributes"/>
+                                <MenuItem text="Properties" onAction="#cm_properties"/>
                             </items>
                         </ContextMenu>
                     </contextMenu>
@@ -63,7 +63,7 @@
                             <String fx:value="create_file_btn"/>
                         </styleClass>
                     </Button>
-                    <Button mnemonicParsing="false" onMouseClicked="#sendPackage">
+                    <Button mnemonicParsing="false" onMouseClicked="#upload">
                         <tooltip>
                             <Tooltip text="Upload"/>
                         </tooltip>
@@ -93,10 +93,11 @@
                             <items>
                                 <MenuItem text="Rename" onAction="#sm_rename"/>
                                 <MenuItem text="Download" onAction="#sm_download"/>
+                                <MenuItem text="Share" onAction="#share"/>
                                 <SeparatorMenuItem/>
                                 <MenuItem text="Delete" onAction="#sm_remove"/>
                                 <SeparatorMenuItem/>
-                                <MenuItem text="Properties"/>
+                                <MenuItem text="Properties" onAction="#sm_properties"/>
                             </items>
                         </ContextMenu>
                     </contextMenu>
@@ -105,6 +106,15 @@
                 <HBox alignment="TOP_RIGHT" maxHeight="40.0" minHeight="40.0" prefHeight="40.0" prefWidth="200.0"
                       styleClass="btn_bar" AnchorPane.bottomAnchor="5.0" AnchorPane.leftAnchor="10.0"
                       AnchorPane.rightAnchor="10.0">
+                    <Button mnemonicParsing="false" onMouseClicked="#sendingFiles">
+                        <tooltip>
+                            <Tooltip text="Sending files"/>
+                        </tooltip>
+                        <styleClass>
+                            <String fx:value="image_btn"/>
+                            <String fx:value="sending_files_btn"/>
+                        </styleClass>
+                    </Button>
                     <Button mnemonicParsing="false" onMouseClicked="#createFolderOnServer">
                         <tooltip>
                             <Tooltip text="Create folder"/>
@@ -123,7 +133,8 @@
                             <String fx:value="download_btn"/>
                         </styleClass>
                     </Button>
-                    <Button mnemonicParsing="false">
+                    <Button mnemonicParsing="false"
+                    onAction="#share">
                         <tooltip>
                             <Tooltip text="Share"/>
                         </tooltip>

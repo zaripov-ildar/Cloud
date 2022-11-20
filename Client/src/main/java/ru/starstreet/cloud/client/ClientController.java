@@ -1,18 +1,14 @@
 package ru.starstreet.cloud.client;
 
 import javafx.application.Platform;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.json.JSONObject;
-import ru.starstreet.cloud.core.AbstractMessage;
-import ru.starstreet.cloud.core.JSONNavigator;
-import ru.starstreet.cloud.core.Message;
-import ru.starstreet.cloud.core.PackedFile;
+import org.json.JSONArray;
+import ru.starstreet.cloud.core.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,16 +18,16 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static ru.starstreet.cloud.core.Utils.HelpfulMethods.getAttributes;
-import static ru.starstreet.cloud.core.Utils.HelpfulMethods.recursiveRemoving;
+import static ru.starstreet.cloud.core.Utils.HelpfulMethods.*;
 
 @Slf4j
 public class ClientController implements Initializable {
-    private static boolean isAuthorized;
+
+    public static final String SHARED_FILES = "Shared files";
+    public static final String STORAGE = "Storage/";
+    private boolean authorized;
     private Path currentClientPath;
     private Path currentServerPath;
-
-    private JSONNavigator navigator;
     private NettyClient client;
     @FXML
     private Label serverPathLabel;
@@ -45,42 +41,69 @@ public class ClientController implements Initializable {
     private ContextMenu clientMenu;
     @FXML
     private ContextMenu serverMenu;
+    private String rootName;
+    private String authStatus;
+    private Path ROOT;
+
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        currentClientPath = Path.of(System.getProperty("user.home")).toAbsolutePath();
+        ROOT = File.listRoots()[0].toPath();
+        client = new NettyClient(this::getOnMsgReceived);
+        refreshClientView();
+
+        clientFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY) {
+                clientMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
+            }
+        });
+        serverFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY) {
+                serverMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
+            }
+        });
+    }
+
+    public String getAuthStatus() {
+        return authStatus;
+    }
+
+
+    public void setRooName(String rooName) {
+        this.rootName = rooName;
+    }
 
     private void getOnMsgReceived(AbstractMessage abstractMessage) {
-        if (abstractMessage instanceof Message) {
-            String message = ((Message) abstractMessage).getMessage();
-            System.out.println(message);
-            if (message.equals("passed")) {
-                isAuthorized = true;
-            } else if (message.startsWith("{")) {
-                updateNavigator(new JSONObject(message));
-                refreshServerView();
+        if (abstractMessage instanceof StringMessage msg) {
+            Command cmd = msg.getCmd();
+            String argument = msg.getArgument();
+
+            switch (cmd) {
+                case AUTH -> authStatus = argument;
+                case PASSED -> {
+                    currentServerPath = Path.of(msg.getArgument());
+                    authorized = true;
+                    refreshServerView();
+                }
+                case FILE_LIST, SHARED_FILES -> {
+                    JSONArray arr = new JSONArray(argument);
+                    List<String> files = new ArrayList<>();
+                    for (Object o : arr) {
+                        files.add((String) o);
+                    }
+                    updateView(serverFileList, files, serverPathLabel, currentServerPath);
+                }
+                case RENAME -> showAlert(argument);
+                case PROPERTIES -> showReport(argument, "File attributes");
+                case TRANSFER -> sendChunk(argument, this::sendMessage);
             }
-        } else if (abstractMessage instanceof PackedFile pf) {
-            String fileName = pf.getPath();
-            Path file = currentClientPath.resolve(fileName);
-            try {
-                Files.write(file, pf.getBytes());
-                refreshClientView();
-            } catch (IOException e) {
-                log.error("Error: " + e);
-            }
+
+        } else if (abstractMessage instanceof Chunk chunk) {
+
+            receiveChunk(chunk, this::refreshClientView, this::sendMessage);
         }
     }
 
-    private void updateNavigator(JSONObject jsonObject) {
-        if (navigator == null) {
-            navigator = new JSONNavigator(jsonObject);
-            currentServerPath = Path.of(navigator.getRootName());
-        } else {
-            navigator = new JSONNavigator(jsonObject);
-        }
-    }
-
-
-    public boolean isAuthorized() {
-        return isAuthorized;
-    }
 
     public void sendMessage(AbstractMessage message) {
         client.sendMessage(message);
@@ -128,11 +151,11 @@ public class ClientController implements Initializable {
             }
         });
         return list;
-
     }
 
     private List<String> getFileList(Path p) {
         File[] list = p.toFile().listFiles();
+        if (list == null) return new ArrayList<>();
         return Arrays.stream(list)
                 .filter(File::canRead)
                 .map(f -> {
@@ -144,31 +167,19 @@ public class ClientController implements Initializable {
                 .collect(Collectors.toList());
     }
 
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        currentClientPath = Path.of(System.getProperty("user.home"));
-        client = new NettyClient(this::getOnMsgReceived);
-        refreshClientView();
-        clientFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
-            if (event.getButton() == MouseButton.SECONDARY) {
-                clientMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
-            }
-        });
-        serverFileList.addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
-            if (event.getButton() == MouseButton.SECONDARY) {
-                serverMenu.show(clientFileList, event.getScreenX(), event.getScreenY());
-            }
-        });
-    }
 
     private Path react(ListView<String> listView, Path path) {
         String selected = listView.getSelectionModel().getSelectedItem();
         if (selected != null) {
+            if (selected.equals(ROOT.toString())) {
+                return ROOT;
+            }
             if (selected.equals("../")) {
                 Path temp = path.getParent();
                 path = temp == null ? path : temp;
             } else if (selected.endsWith("/")) {
                 path = path.resolve(selected.split("/")[0]);
+
             }
         }
         return path;
@@ -179,6 +190,9 @@ public class ClientController implements Initializable {
             label.setText(path.toString());
             listView.getItems().clear();
             listView.getItems().add("../");
+            if (!path.toString().equals(ROOT.toString()) && path.getFileName().toString().equals(rootName)) {
+                listView.getItems().add("Shared files/");
+            }
             listView.getItems().addAll(list);
         });
     }
@@ -191,53 +205,52 @@ public class ClientController implements Initializable {
     }
 
     private void refreshServerView() {
-        updateView(serverFileList,
-                sortFileList(navigator.getFileList(currentServerPath)),
-                serverPathLabel,
-                currentServerPath);
-    }
+        if (Path.of(rootName).resolve("Shared files/").toString().equals(currentServerPath.toString())) {
 
-    private static String cutLabelName(String labelName) {
-        if (labelName.length() > 17) {
-            return "..." + labelName.substring(labelName.length() - 17);
+            client.sendMessage(new StringMessage(Command.SHARED_FILES, rootName));
+        } else {
+            client.sendMessage(new StringMessage(Command.FILE_LIST, currentServerPath.toString()));
         }
-        return labelName;
     }
 
     @FXML
-    private void sendPackage(MouseEvent event) {
+    private void upload(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-            sendPackage();
+            upload();
+            refreshServerView();
         }
     }
 
-    private void sendPackage() {
+    private void upload() {
         String fileName = clientFileList.getSelectionModel().getSelectedItem();
-        Path sendingFile = currentClientPath.resolve(fileName);
-        if (!Files.exists(sendingFile)) {
-            showAlert(sendingFile + " File not exist!!!");
-        } else if (Files.isDirectory(sendingFile)) {
+        Path departure = currentClientPath.resolve(fileName);
+        if (!Files.exists(departure)) {
+            showAlert(departure + " File not exist!!!");
+        } else if (Files.isDirectory(departure)) {
             showAlert("Sorry. I can't send directories yet((");
         } else {
-            try {
-                byte[] arr = Files.readAllBytes(sendingFile);
-                Path pathOnServer = currentServerPath.resolve(sendingFile.getFileName());
-                PackedFile pf = new PackedFile(pathOnServer.toString(), arr);
-                client.sendMessage(pf);
-            } catch (IOException e) {
-                log.error("Error: " + e);
-            }
+            Path destination = currentServerPath.resolve(departure.getFileName());
+
+            sendPackage(departure.toString(), Path.of(STORAGE).resolve(destination).toAbsolutePath() + "/");
         }
     }
+
+    private void sendPackage(String departure, String destination) {
+        sendChunk(departure + "#" + destination + "#0", this::sendMessage);
+    }
+
 
     @FXML
     private void createFolderOnServer(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+            if (currentServerPath.startsWith(rootName + "/Shared files")) {
+                showAlert("You can't create folder here!");
+                return;
+            }
             String name = getNewFolderName();
             if (name != null) {
                 String newPath = currentServerPath.resolve(name) + "/";
-                System.out.println("create on server: " + newPath);
-                client.sendMessage(new Message("CREATE_DIR " + newPath));
+                client.sendMessage(new StringMessage(Command.CREATE_DIR, newPath));
             }
         }
     }
@@ -253,6 +266,9 @@ public class ClientController implements Initializable {
     private String getNewItemName(String item) {
         String newName = getTextFromUser("Create new" + item,
                 "Enter " + item + " name:", "New " + item);
+        if (newName == null) {
+            return null;
+        }
         if (newName.length() > 255) {
             showAlert("Too long " + item + "filename!");
             return null;
@@ -276,10 +292,12 @@ public class ClientController implements Initializable {
     }
 
     private void showAlert(String contentText) {
-        final Alert alert = new Alert(Alert.AlertType.ERROR, contentText,
-                new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
-        alert.setTitle("Something goes wrong");
-        alert.showAndWait();
+        Platform.runLater(() -> {
+            final Alert alert = new Alert(Alert.AlertType.ERROR, contentText,
+                    new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
+            alert.setTitle("Something goes wrong");
+            alert.showAndWait();
+        });
     }
 
     @FXML
@@ -323,9 +341,17 @@ public class ClientController implements Initializable {
         String name = clientFileList.getSelectionModel().getSelectedItem();
         Path removingFile = currentClientPath.resolve(name);
         if (askAlert("Do you really want removing " + name + "?")) {
-            recursiveRemoving(removingFile.toFile());
+            List<String> deletedFileList = new ArrayList<>();
+            recursiveRemoving(removingFile.toFile(), deletedFileList);
+            showReport(listToString(deletedFileList), "Deleted files:");
             refreshClientView();
         }
+    }
+
+    private String listToString(List<String> list) {
+        StringBuilder sb = new StringBuilder();
+        list.forEach(f -> sb.append(f).append("\n"));
+        return sb.toString();
     }
 
     private boolean askAlert(String s) {
@@ -343,59 +369,83 @@ public class ClientController implements Initializable {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
             removeOnServer();
         }
+        refreshServerView();
     }
 
     private void removeOnServer() {
         String name = serverFileList.getSelectionModel().getSelectedItem();
-        name = currentServerPath + "/" + name;
-        System.out.println(name);
         if (askAlert("Do you really want removing " + name + "?")) {
-            sendMessage(new Message("REMOVE " + name));
+            if (currentServerPath.toString().equals(rootName + "/" + SHARED_FILES)) {
+                sendMessage(new StringMessage(Command.REMOVE_SHARED, rootName + " " + name));
+            } else {
+                name = currentServerPath + "/" + name;
+                sendMessage(new StringMessage(Command.REMOVE, name));
+            }
         }
     }
 
     @FXML
     private void download(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
-            download();
+            try {
+                download();
+            } catch (IOException e) {
+                log.error(e.getMessage());
+            }
         }
     }
 
-    private void download() {
+    private void download() throws IOException {
+        File departure;
+        File destination;
         String name = serverFileList.getSelectionModel().getSelectedItem();
         if (name.endsWith("/")) {
             showAlert("Sorry. I can't download directories yet((");
         } else {
-            sendMessage(new Message("DOWNLOAD " + currentServerPath + "/" + name));
+            if (currentServerPath.startsWith(rootName + "/" + SHARED_FILES)) {
+                departure = new File(STORAGE + name);
+                Path file = Path.of(name).getFileName();
+                destination = currentClientPath.resolve(file).toFile();
+            } else {
+                departure = new File(STORAGE + currentServerPath + "/" + name);
+                destination = currentClientPath.resolve(name).toFile();
+            }
+            sendMessage(new StringMessage(Command.TRANSFER, departure + "#" + destination + "#0"));
         }
     }
 
     @FXML
-    private void cm_send(ActionEvent event) {
-        sendPackage();
+    private void cm_send() {
+        upload();
+        refreshServerView();
     }
 
     @FXML
-    private void cm_remove(ActionEvent event) {
+    private void cm_remove() {
         removeOnClient();
+
     }
 
     @FXML
-    private void sm_download(ActionEvent event) {
-        download();
+    private void sm_download() {
+        try {
+            download();
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
     }
 
     @FXML
-    private void sm_remove(ActionEvent event) {
+    private void sm_remove() {
         removeOnServer();
+        refreshServerView();
     }
 
-    public void renameOnClient(ActionEvent event) {
+    public void renameOnClient() {
         String file = clientFileList.getSelectionModel().getSelectedItem();
         File oldName = currentClientPath.resolve(file).toAbsolutePath().toFile();
         String newName = getTextFromUser("Rename", "Enter new name", "New name");
         if (newName != null) {
-
             File newFile = currentClientPath.resolve(newName).toAbsolutePath().toFile();
             if (newFile.exists()) {
                 showAlert(newFile + " already exists!!!");
@@ -410,7 +460,7 @@ public class ClientController implements Initializable {
         }
     }
 
-    public void cm_attributes(ActionEvent event) {
+    public void cm_properties() {
         String selected = clientFileList.getSelectionModel().getSelectedItem();
         Path path = currentClientPath.resolve(selected).toAbsolutePath();
         try {
@@ -419,14 +469,54 @@ public class ClientController implements Initializable {
             showAlert("Can't read file attributes: \n" + e);
         }
     }
+
     private void showReport(String contentText, String title) {
-        final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
-                new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
-        alert.setTitle(title);
-        alert.showAndWait();
+        Platform.runLater(() -> {
+            final Alert alert = new Alert(Alert.AlertType.INFORMATION, contentText,
+                    new ButtonType("I got it", ButtonBar.ButtonData.CANCEL_CLOSE));
+            alert.setTitle(title);
+            alert.showAndWait();
+        });
     }
 
-    public void sm_rename(ActionEvent event) {
-        //todo
+    @FXML
+    private void sm_rename() {
+        String file = serverFileList.getSelectionModel().getSelectedItem();
+        File oldName = currentServerPath.resolve(file).toFile();
+        String newName = getTextFromUser("Rename", "Enter new name", "New name");
+        if (newName != null) {
+            if (oldName.toString().startsWith(rootName + "/" + SHARED_FILES)) {
+                showAlert("You have no rights to rename this");
+            } else {
+                File newFile = currentServerPath.resolve(newName).toFile();
+                sendMessage(new StringMessage(Command.RENAME, oldName + "#" + newFile));
+            }
+        }
     }
+
+    public boolean isAuthorized() {
+        return authorized;
+    }
+
+    public void share() {
+        String login = getTextFromUser("Share", "Input user login to share", "User login");
+        if (login == null) return;
+        String fileName = serverFileList.getSelectionModel().getSelectedItem();
+        Path path = currentServerPath.resolve(fileName);
+        sendMessage(new StringMessage(Command.SHARE, rootName + " " + login + " " + path));
+    }
+
+    public void sm_properties() {
+        String file = serverFileList.getSelectionModel().getSelectedItem();
+        if (currentServerPath.toString().startsWith(rootName + "/" + SHARED_FILES)) {
+            sendMessage(new StringMessage(Command.PROPERTIES, file));
+        } else {
+            sendMessage(new StringMessage(Command.PROPERTIES, currentServerPath.resolve(file).toString()));
+        }
+    }
+
+    public void sendingFiles() {
+        Platform.runLater(() -> showReport(getSendingFiles(), "Sending files"));
+    }
+
 }

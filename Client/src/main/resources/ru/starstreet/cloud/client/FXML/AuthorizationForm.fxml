@@ -6,8 +6,6 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.AnchorPane?>
 
-<!--TODO authorization form-->
-
 <AnchorPane maxHeight="300.0" maxWidth="240.0" minHeight="240.0" minWidth="250.0" prefHeight="240.0" prefWidth="250.0"
             stylesheets="@../CSS/style.css" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="ru.starstreet.cloud.client.AuthorizationController">

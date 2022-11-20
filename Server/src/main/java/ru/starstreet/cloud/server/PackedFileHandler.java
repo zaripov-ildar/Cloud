@@ -3,91 +3,138 @@ package ru.starstreet.cloud.server;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
-import ru.starstreet.cloud.core.AbstractMessage;
-import ru.starstreet.cloud.core.Message;
-import ru.starstreet.cloud.core.PackedFile;
-import ru.starstreet.cloud.core.Utils.HelpfulMethods;
-import ru.starstreet.cloud.server.DB.AuthorizationService;
-import ru.starstreet.cloud.server.DB.DAOSingleton;
+import ru.starstreet.cloud.core.*;
+import ru.starstreet.cloud.server.DB.interfaces.DBService;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import static ru.starstreet.cloud.core.Utils.HelpfulMethods.*;
 
 @Slf4j
 public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessage> {
-    private final ClientInfo client;
+    private final DBService service;
+    private final Path STORAGE = Path.of("Storage");
+    private String login;
 
-    public PackedFileHandler(ClientInfo client) {
-        this.client = client;
+    public PackedFileHandler(DBService service) {
+        this.service = service;
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    public void channelActive(ChannelHandlerContext ctx) {
         System.out.println("client connected");
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) {
+        service.clientLeaved(login);
         System.out.println("client disconnected");
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, AbstractMessage msg) {
-        Path storage = Path.of("Storage");
-        if (msg instanceof PackedFile pf) {
-            Path path = storage.resolve(pf.getPath());
-            try {
-                Files.write(path, pf.getBytes());
-//                todo remove duplication
-                DAOSingleton.INSTANCE.addNewFile(Path.of(pf.getPath()), client.getId());
-                ctx.writeAndFlush(new Message(DAOSingleton.INSTANCE.getDirTree(client.getId()).toString()));
-            } catch (IOException e) {
-                log.error("Error: " + e);
-            }
-        } else if (msg instanceof Message message) {
-            if (!client.isAuthorized()) {
-                AuthorizationService.authorize(message.getMessage(), ctx, client);
-            } else {
-                String[] tokens = message.getMessage().split(" ", 2);
-                System.out.println("command: " + tokens[0]);
-                System.out.println("argument: " + tokens[1]);
-                Path path = storage.resolve(tokens[1]);
-                switch (tokens[0]) {
-                    case "CREATE_DIR" -> {
-                        try {
-                            if (Files.notExists(path)) {
-                                Files.createDirectory(path);
-                            }
-//                todo remove duplication
-                            DAOSingleton.INSTANCE.addNewFolder(Path.of(tokens[1]), client.getId());
-                            ctx.writeAndFlush(new Message(DAOSingleton.INSTANCE.getDirTree(client.getId()).toString()));
-                        } catch (IOException e) {
-                            log.debug("Error: " + e);
-                        }
-                    }
-                    case "CREATE_FILE" -> {
-//                        todo
-                    }
-                    case "REMOVE" -> {
-                        HelpfulMethods.recursiveRemoving(path.toFile());
-//                todo remove duplication
-                        DAOSingleton.INSTANCE.remove(tokens[1], client.getId());
-                        ctx.writeAndFlush(new Message(DAOSingleton.INSTANCE.getDirTree(client.getId()).toString()));
-                    }
-                    case "DOWNLOAD" -> {
-                        Path file = storage.resolve(tokens[1]);
-                        try {
-                            byte[] arr = Files.readAllBytes(file);
-                            ctx.writeAndFlush(new PackedFile(file.getFileName().toString(), arr));
-                        } catch (IOException e) {
-                            log.debug("Error: " + e);
-                        }
+    protected void channelRead0(ChannelHandlerContext ctx, AbstractMessage message) {
+        if (message instanceof StringMessage msg) {
+            Command cmd = msg.getCmd();
+            String argument = msg.getArgument();
+            Path currentPath = STORAGE.resolve(argument);
+
+            switch (cmd) {
+                case AUTH -> {
+                    String[] pair = msg.getArgument().split(" ");
+                    String login = pair[0];
+                    if (service.isLogged(login)) {
+                        ctx.writeAndFlush(new StringMessage(Command.AUTH, login + " is online already!"));
+                    } else if (service.isValidPass(login, Integer.parseInt(pair[1]))) {
+                        currentPath = STORAGE.resolve(login);
+                        createDirIfNotExists(currentPath);
+                        ctx.writeAndFlush(new StringMessage(Command.PASSED, login));
+                        this.login = login;
+                        service.addLogin(login);
+                    } else {
+                        ctx.writeAndFlush(new StringMessage(Command.AUTH, "Wrong login/password pair"));
+
                     }
                 }
+                case FILE_LIST -> sendFileList(ctx, currentPath);
+                case REMOVE -> {
+                    List<String> deletedFileList = new ArrayList<>();
+                    recursiveRemoving(currentPath.toFile(), deletedFileList);
+                    service.remove(deletedFileList);
+
+                }
+                case CREATE_DIR -> {
+                    createDirIfNotExists(currentPath);
+                    sendFileList(ctx, currentPath.getParent());
+                }
+                case SHARED_FILES -> {
+                    String stringFromFileArray = service.getSharedFilesAsString(argument);
+                    ctx.writeAndFlush(new StringMessage(Command.SHARED_FILES, stringFromFileArray));
+                }
+                case SHARE -> {
+                    String[] args = argument.split(" ", 3);
+                    String ownerLogin = args[0];
+                    String recipientLogin = args[1];
+                    String path = args[2];
+                    service.share(ownerLogin, recipientLogin, path);
+                }
+                case REMOVE_SHARED -> {
+                    String[] args = argument.split(" ", 2);
+                    String recipient = args[0];
+                    String path = args[1];
+                    service.removeRecipient(recipient, path);
+                }
+                case RENAME -> {
+                    String[] args = argument.split("#");
+                    File oldFile = STORAGE.resolve(args[0]).toAbsolutePath().toFile();
+                    File newFile = STORAGE.resolve(args[1]).toAbsolutePath().toFile();
+
+                    if (newFile.exists()) {
+                        ctx.writeAndFlush(new StringMessage(Command.RENAME, args[1] + "\nis already exist!"));
+                        return;
+                    }
+                    boolean result = oldFile.renameTo(newFile);
+                    if (result) {
+                        sendFileList(ctx, newFile.toPath().getParent());
+                        service.renameIfShared(oldFile.toString(), newFile.toString());
+                    } else {
+                        ctx.writeAndFlush(new StringMessage(Command.RENAME, "Couldn't rename: " + oldFile + " to " + newFile));
+                    }
+                }
+                case PROPERTIES -> {
+                    try {
+                        String atr = getAttributes(STORAGE.resolve(argument).toAbsolutePath());
+                        ctx.writeAndFlush(new StringMessage(Command.PROPERTIES, atr));
+                    } catch (IOException e) {
+                        log.error(e.getMessage());
+                    }
+                }
+                case TRANSFER -> sendChunk(argument, ctx::writeAndFlush);
+
             }
+        } else if (message instanceof Chunk chunk) {
+            Path toRefresh = Path.of(chunk.getDestination()).getParent();
+            receiveChunk(chunk,
+                    () -> this.sendFileList(ctx, toRefresh),
+                    ctx::writeAndFlush);
         }
     }
 
+    private void sendFileList(ChannelHandlerContext ctx, Path path) {
+        ctx.writeAndFlush(new StringMessage(Command.FILE_LIST, getFilesAsString(path)));
+    }
 
+    private void createDirIfNotExists(Path path) {
+        if (Files.notExists(path)) {
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                log.error(e.getMessage());
+            }
+        }
+    }
 }

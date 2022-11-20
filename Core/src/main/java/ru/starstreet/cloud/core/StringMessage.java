@@ -4,12 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-
-
-@EqualsAndHashCode(callSuper=false)
+@EqualsAndHashCode(callSuper = false)
 @Data
 @AllArgsConstructor
-public class Message extends AbstractMessage {
-    private String message;
+public class StringMessage extends AbstractMessage {
+    private Command cmd;
+    private String argument;
 
 }

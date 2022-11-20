@@ -35,6 +35,9 @@
 .share_btn{
     -fx-background-image: url('../Images/share.png');
 }
+.sending_files_btn {
+    -fx-background-image: url('../Images/flying.png');
+}
 
 .button {
     -fx-pref-height: -fx-btn-size;
@@ -79,6 +82,5 @@
     -fx-background-radius: 5 5 5 5;
     -fx-background-color: rgb(50, 50, 50);
 }
-
 
 

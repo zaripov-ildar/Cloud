@@ -11,29 +11,30 @@ import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import lombok.extern.slf4j.Slf4j;
-
-import java.nio.file.Path;
+import ru.starstreet.cloud.server.DB.interfaces.DBService;
+import ru.starstreet.cloud.server.DB.H2Db.H2DbService;
+import io.netty.handler.stream.ChunkedWriteHandler;
 
 @Slf4j
-public class NettyServer {
+public class Server {
     private static final int PORT = 8189;
-    private static final Path storage = Path.of("Storage");
+    private static final DBService service = new H2DbService();
 
     public static void main(String[] args) {
         EventLoopGroup auth = new NioEventLoopGroup(1);
         EventLoopGroup worker = new NioEventLoopGroup();
-        try  {
+        try {
             ServerBootstrap bootstrap = new ServerBootstrap();
             ChannelFuture future = bootstrap.group(auth, worker)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {
-                            ClientInfo client = new ClientInfo(storage);
                             channel.pipeline().addLast(
                                     new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),
-                                    new PackedFileHandler(client)
+                                    new PackedFileHandler(service),
+                                    new ChunkedWriteHandler()
                             );
                         }
                     })

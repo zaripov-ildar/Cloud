@@ -5,8 +5,7 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class User {
+public class SharedFile {
     private int id;
-    private String login;
-    private int passHash;
+    private String path;
 }
