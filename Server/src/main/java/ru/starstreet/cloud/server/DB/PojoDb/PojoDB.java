@@ -111,7 +111,6 @@ public class PojoDB implements AbstractDB {
         if (getSharedFiles(fileId).isEmpty()) {
             removeSharedFile(fileId);
         }
-        ;
     }
 
     private List<String> getSharedFiles(int fileId) {

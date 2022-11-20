@@ -8,8 +8,6 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.io.InputStream;
-
 
 public class ClientStarter extends Application {
     private ClientController controller;
@@ -32,10 +30,7 @@ public class ClientStarter extends Application {
 
     private void configure(Stage stage) {
         stage.setTitle("Cloud storage");
-        InputStream is = ClassLoader.getSystemResourceAsStream("logo.png");
-        if (is != null) {
-            stage.getIcons().add(new Image(is));
-        }
+        stage.getIcons().add(new Image("file:logo.png"));
         stage.setMinHeight(450);
         stage.setMinWidth(600);
     }

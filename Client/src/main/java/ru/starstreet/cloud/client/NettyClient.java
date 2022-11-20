@@ -10,18 +10,15 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
-import io.netty.handler.stream.ChunkedNioFile;
 import lombok.extern.slf4j.Slf4j;
 import ru.starstreet.cloud.core.AbstractMessage;
 import ru.starstreet.cloud.core.OnMessageReceived;
-import io.netty.handler.stream.ChunkedFile;
 
 @Slf4j
 public class NettyClient {
     private SocketChannel channel;
-    private OnMessageReceived callback;
+
     public NettyClient(OnMessageReceived callback) {
-        this.callback = callback;
         Thread t = new Thread(() -> {
             EventLoopGroup group = new NioEventLoopGroup();
             try {
@@ -30,7 +27,7 @@ public class NettyClient {
                         .group(group)
                         .handler(new ChannelInitializer<SocketChannel>() {
                             @Override
-                            protected void initChannel(SocketChannel ch) throws Exception {
+                            protected void initChannel(SocketChannel ch) {
                                 channel = ch;
                                 ch.pipeline().addLast(
                                         new ObjectEncoder(),

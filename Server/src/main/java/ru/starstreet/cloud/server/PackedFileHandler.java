@@ -33,6 +33,7 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         service.clientLeaved(login);
+        service.close();
         System.out.println("client disconnected");
     }
 
@@ -113,12 +114,10 @@ public class PackedFileHandler extends SimpleChannelInboundHandler<AbstractMessa
                         log.error(e.getMessage());
                     }
                 }
-                case TRANSFER -> {
-                    sendBigFile(argument, ctx::writeAndFlush);
-                }
+                case TRANSFER -> sendBigFile(argument, ctx::writeAndFlush);
 
             }
-        } else if (message instanceof BigFile chunk) {
+        } else if (message instanceof Chunk chunk) {
             Path toRefresh = Path.of(chunk.getDestination()).getParent();
             receiveBigFile(chunk,
                     () -> this.sendFileList(ctx, toRefresh),

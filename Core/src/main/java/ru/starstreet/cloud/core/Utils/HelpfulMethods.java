@@ -2,7 +2,7 @@ package ru.starstreet.cloud.core.Utils;
 
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
-import ru.starstreet.cloud.core.BigFile;
+import ru.starstreet.cloud.core.Chunk;
 import ru.starstreet.cloud.core.Command;
 import ru.starstreet.cloud.core.StringMessage;
 
@@ -39,9 +39,10 @@ public class HelpfulMethods {
                 recursiveRemoving(file);
             }
         }
-        String filePath = removingFile.getAbsolutePath().split("Storage/", 2)[1];
-        list.add(filePath);
-        removingFile.delete();
+        String filePath = removingFile.getAbsolutePath().replace("Storage/", "");
+        if (removingFile.delete()) {
+            list.add(filePath);
+        }
     }
 
     private static String formatDateTime(FileTime fileTime) {
@@ -90,13 +91,13 @@ public class HelpfulMethods {
             int read = file.read(bytes);
             long size = file.length();
             sendingFiles.put(Path.of(destination).getFileName().toString(), (float) position / size);
-            sender.sendFile(new BigFile(bytes, position, read, departure, destination, size));
+            sender.sendFile(new Chunk(bytes, position, read, departure, destination, size));
         } catch (IOException e) {
             log.error(">>>" + e);
         }
     }
 
-    public static void receiveBigFile(BigFile chunk, OnDownloadEnd notifier, MessageSender sender) {
+    public static void receiveBigFile(Chunk chunk, OnDownloadEnd notifier, MessageSender sender) {
         sendingFiles.put(chunk.getDestination(), (float) chunk.getPosition() / chunk.getSize());
         File destination = new File(chunk.getDestination());
         if (!destination.exists()) {
@@ -124,7 +125,7 @@ public class HelpfulMethods {
     public static String getSendingFiles() {
         StringBuilder sb = new StringBuilder();
         sendingFiles.values().removeIf(v -> v >= .9);
-        if (sendingFiles.size()==0){
+        if (sendingFiles.size() == 0) {
             return "No one file is sending";
         }
         for (String s : sendingFiles.keySet()) {

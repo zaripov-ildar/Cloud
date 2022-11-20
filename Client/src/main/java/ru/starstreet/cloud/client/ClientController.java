@@ -1,7 +1,6 @@
 package ru.starstreet.cloud.client;
 
 import javafx.application.Platform;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -96,13 +95,10 @@ public class ClientController implements Initializable {
                 }
                 case RENAME -> showAlert(argument);
                 case PROPERTIES -> showReport(argument, "File attributes");
-                case TRANSFER ->{
-                    sendBigFile(argument, this::sendMessage);
-
-                }
+                case TRANSFER -> sendBigFile(argument, this::sendMessage);
             }
 
-        } else if (abstractMessage instanceof BigFile chunk) {
+        } else if (abstractMessage instanceof Chunk chunk) {
 
             receiveBigFile(chunk, this::refreshClientView, this::sendMessage);
         }
@@ -159,6 +155,7 @@ public class ClientController implements Initializable {
 
     private List<String> getFileList(Path p) {
         File[] list = p.toFile().listFiles();
+        if (list == null) return new ArrayList<>();
         return Arrays.stream(list)
                 .filter(File::canRead)
                 .map(f -> {
@@ -216,13 +213,6 @@ public class ClientController implements Initializable {
         }
     }
 
-    private static String cutLabelName(String labelName) {
-        if (labelName.length() > 17) {
-            return "..." + labelName.substring(labelName.length() - 17);
-        }
-        return labelName;
-    }
-
     @FXML
     private void upload(MouseEvent event) {
         if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
@@ -272,7 +262,7 @@ public class ClientController implements Initializable {
     private String getNewItemName(String item) {
         String newName = getTextFromUser("Create new" + item,
                 "Enter " + item + " name:", "New " + item);
-        if (newName==null){
+        if (newName == null) {
             return null;
         }
         if (newName.length() > 255) {
@@ -405,28 +395,27 @@ public class ClientController implements Initializable {
                 Path file = Path.of(name).getFileName();
                 destination = currentClientPath.resolve(file).toFile();
             } else {
-                departure = new File(STORAGE + currentServerPath + "/"+ name);
+                departure = new File(STORAGE + currentServerPath + "/" + name);
                 destination = currentClientPath.resolve(name).toFile();
             }
-            System.out.println(destination + ": " + destination.exists());
             sendMessage(new StringMessage(Command.TRANSFER, departure + "#" + destination + "#0"));
         }
     }
 
     @FXML
-    private void cm_send(ActionEvent event) {
+    private void cm_send() {
         upload();
         refreshServerView();
     }
 
     @FXML
-    private void cm_remove(ActionEvent event) {
+    private void cm_remove() {
         removeOnClient();
 
     }
 
     @FXML
-    private void sm_download(ActionEvent event) {
+    private void sm_download() {
         try {
             download();
         } catch (IOException e) {
@@ -435,12 +424,12 @@ public class ClientController implements Initializable {
     }
 
     @FXML
-    private void sm_remove(ActionEvent event) {
+    private void sm_remove() {
         removeOnServer();
         refreshServerView();
     }
 
-    public void renameOnClient(ActionEvent event) {
+    public void renameOnClient() {
         String file = clientFileList.getSelectionModel().getSelectedItem();
         File oldName = currentClientPath.resolve(file).toAbsolutePath().toFile();
         String newName = getTextFromUser("Rename", "Enter new name", "New name");
@@ -459,7 +448,7 @@ public class ClientController implements Initializable {
         }
     }
 
-    public void cm_properties(ActionEvent event) {
+    public void cm_properties() {
         String selected = clientFileList.getSelectionModel().getSelectedItem();
         Path path = currentClientPath.resolve(selected).toAbsolutePath();
         try {
@@ -497,7 +486,7 @@ public class ClientController implements Initializable {
         return authorized;
     }
 
-    public void share(ActionEvent event) {
+    public void share() {
         String login = getTextFromUser("Share", "Input user login to share", "User login");
         if (login == null) return;
         String fileName = serverFileList.getSelectionModel().getSelectedItem();
@@ -505,9 +494,8 @@ public class ClientController implements Initializable {
         sendMessage(new StringMessage(Command.SHARE, rootName + " " + login + " " + path));
     }
 
-    public void sm_properties(ActionEvent event) {
+    public void sm_properties() {
         String file = serverFileList.getSelectionModel().getSelectedItem();
-        System.out.println(currentServerPath);
         if (currentServerPath.toString().startsWith(rootName + "/" + SHARED_FILES)) {
             sendMessage(new StringMessage(Command.PROPERTIES, file));
         } else {
@@ -515,11 +503,8 @@ public class ClientController implements Initializable {
         }
     }
 
-
-    public void sendingFiles(MouseEvent event) {
-        Platform.runLater(()->{
-            showReport(getSendingFiles(), "Sending files");
-        });
+    public void sendingFiles() {
+        Platform.runLater(() -> showReport(getSendingFiles(), "Sending files"));
     }
 
 }

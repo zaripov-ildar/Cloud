@@ -58,7 +58,6 @@ public class H2DB implements Closeable, AbstractDB {
                 "('Kirk', %d)," +
                 "('Archer', %d);", "123".hashCode(), "456".hashCode(), "789".hashCode());
         statement.executeUpdate(userData);
-        System.out.println(getUserByLogin("Picard"));
     }
 
     @Override
@@ -136,7 +135,6 @@ public class H2DB implements Closeable, AbstractDB {
                     "INSERT INTO sharedFilesUsers (recipient_id, owner_id, file_id)" +
                     "VALUES(%d, %d, %d)", recipientId, ownerId, fileId);
             statement.executeUpdate(query);
-            printSharedFiles();
         } catch (SQLException e) {
             log.error(e.getMessage());
         }
@@ -182,7 +180,6 @@ public class H2DB implements Closeable, AbstractDB {
                 "WHERE id = " + id;
         try {
             statement.executeUpdate(query);
-            printSharedFiles();
         } catch (SQLException e) {
             log.error(e.getMessage());
         }
@@ -207,17 +204,6 @@ public class H2DB implements Closeable, AbstractDB {
         try {
             statement.executeUpdate("DELETE FROM sharedFiles " +
                     "WHERE fileName = '" + fileName + "';");
-        } catch (SQLException e) {
-            log.error(e.getMessage());
-        }
-    }
-
-    private void printSharedFiles(){
-        try {
-            ResultSet set = statement.executeQuery("Select * from sharedFiles;");
-            while (set.next()){
-                System.out.println(set.getString("fileName"));
-            }
         } catch (SQLException e) {
             log.error(e.getMessage());
         }

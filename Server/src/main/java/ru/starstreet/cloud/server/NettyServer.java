@@ -23,7 +23,7 @@ public class NettyServer {
     public static void main(String[] args) {
         EventLoopGroup auth = new NioEventLoopGroup(1);
         EventLoopGroup worker = new NioEventLoopGroup();
-        try  {
+        try {
             ServerBootstrap bootstrap = new ServerBootstrap();
             ChannelFuture future = bootstrap.group(auth, worker)
                     .channel(NioServerSocketChannel.class)

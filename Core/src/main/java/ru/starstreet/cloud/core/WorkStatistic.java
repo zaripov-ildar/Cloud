@@ -50,14 +50,14 @@ public class WorkStatistic {
         text = sb.toString();
     }
 
-    private static void recursiveSearch(String path){
+    private static void recursiveSearch(String path) {
         File dir = new File(path);
-        File [] arrFiles = dir.listFiles();
+        File[] arrFiles = dir.listFiles();
         if (arrFiles != null) {
             for (File arrFile : arrFiles) {
                 if (arrFile.isFile()) {
-                    String [] fExtensions = arrFile.getName().split("\\.");
-                    String fExt = fExtensions[fExtensions.length-1];
+                    String[] fExtensions = arrFile.getName().split("\\.");
+                    String fExt = fExtensions[fExtensions.length - 1];
                     if (fileExtension.contains(fExt)) {
                         fileList.add(arrFile);
                     }
